@@ -80,7 +80,7 @@ fn execute_ast<'a>(py: Python<'a>, ast: Vec<&PyDict>, variables: Vec<&PyDict>, f
 }
 
 #[pymodule]
-fn femscript_rs(_py: Python, module: &PyModule) -> PyResult<()> {
+fn femscript(_py: Python, module: &PyModule) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(generate_tokens, module)?)?;
     module.add_function(wrap_pyfunction!(generate_ast, module)?)?;
     module.add_function(wrap_pyfunction!(execute_ast, module)?)?;

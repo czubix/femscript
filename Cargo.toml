@@ -1,12 +1,12 @@
 [package]
-name = "femscript-rs"
+name = "femscript"
 version = "0.1.0"
 authors = ["czubix"]
 edition = "2021"
 license = "Apache-2.0"
 
 [lib]
-name = "femscript_rs"
+name = "femscript"
 crate-type = ["cdylib"]
 
 [dependencies]
