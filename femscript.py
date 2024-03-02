@@ -15,7 +15,7 @@ limitations under the License.
 """
 
 from femscript import generate_tokens, generate_ast, execute_ast
-from typing import List, Optional, Union, TypedDict, Callable
+from typing import List, Dict, Optional, Union, TypedDict, Callable
 import asyncio, math
 
 class Scope(dict):
@@ -61,7 +61,7 @@ class Function(TypedDict):
     name: str
     func: Callable[[List[Token], List[Variable]], None]
 
-def var(name: str, value: object = None, *, variables: List[Variable] = None) -> Variable:
+def var(name: str, value: Optional[object] = None, *, variables: Optional[List[Variable]] = None) -> Variable:
     if variables is not None:
         token = Femscript.to_fs({})
 
@@ -78,13 +78,31 @@ class FemscriptException(Exception):
     pass
 
 class Femscript:
-    def __init__(self, code: str, *, variables: List[Variable] = None, functions: List[Callable[[str, List[Token], List[Variable]], Token]] = None) -> None:
-        self.code = code
-        self.tokens = generate_tokens(code)
+    def __init__(self, code: Optional[str] = None, *, variables: Optional[List[Variable]] = None, functions: Optional[List[Callable[[str, List[Token], List[Variable]], Token]]] = None) -> None:
+        self.tokens: List[Token]
+        self.ast: List[AST]
+
+        self._variables = variables or []
+        self._functions = functions or []
+
+        self.parse(code)
+
+    def parse(self, code: Optional[str] = None) -> None:
+        self.tokens = generate_tokens(code or "")
         self.ast = generate_ast(self.tokens)
 
-        self.variables = variables or []
-        self.functions = functions or []
+    def add_variable(self, variable: Variable) -> None:
+        for index, _variable in enumerate(self._variables):
+            if _variable["name"] == variable["name"]:
+                break
+        else:
+            return self._variables.append(variable)
+
+        self._variables[index] = variable
+
+    @property
+    def variables(self) -> Dict[str, object]:
+        return {item["name"]: self.to_py(item["value"]) for item in self._variables}
 
     @classmethod
     def fs_type(cls, obj: object) -> str:
@@ -134,7 +152,7 @@ class Femscript:
             list = []
         )
 
-    def wrap_function(self, func: Callable[..., object] = None, *, func_name: str = None, with_name: bool = False) -> object:
+    def wrap_function(self, func: Optional[Callable[..., object]] = None, *, func_name: Optional[str] = None, with_name: Optional[bool] = False) -> object:
         def wrapper(func: Callable[..., object]):
             if asyncio.iscoroutinefunction(func) == True:
                 def wrapper(name: str, args: Union[List[Token], Token], scope: List[Variable]) -> Token:
@@ -166,7 +184,7 @@ class Femscript:
                     except FemscriptException as exc:
                         return self.error(str(exc))
 
-            self.functions.append(
+            self._functions.append(
                 Function(
                     name = func_name or func.__name__,
                     func = wrapper
@@ -180,5 +198,8 @@ class Femscript:
 
         return wrapper
 
-    async def execute(self, *, memory_limit: int = 1024 * 1024 * 1024, max_variables: int = 1000, max_depth: int = 1000, frame_function: Callable[[Variable], Token] = None, debug: bool = False) -> object:
-        return self.to_py(await execute_ast(self.ast, self.variables, self.functions, debug))
+    async def execute(self, *, memory_limit: Optional[int] = 1024 * 1024 * 1024, max_variables: Optional[int] = 1000, max_depth: Optional[int] = 1000, frame_function: Optional[Callable[[Variable], Token]] = None, debug: Optional[bool] = False) -> object:
+        result, scope = await execute_ast(self.ast, self._variables, self._functions, debug)
+        self._variables = [{"name": key, "value": value} for key, value in scope.items()]
+
+        return self.to_py(result)

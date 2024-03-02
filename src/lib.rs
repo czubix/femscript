@@ -75,7 +75,7 @@ fn execute_ast<'a>(py: Python<'a>, ast: Vec<&PyDict>, variables: Vec<&PyDict>, f
     pyo3_asyncio::tokio::future_into_py(py, async move {
         let result = interpreter::execute_ast(rust_ast, &mut scope, None, 0).await;
 
-        Ok(Python::with_gil(|py| convert_token(py, result).as_ref().to_object(py).clone()))
+        Ok(Python::with_gil(|py| (convert_token(py, result).as_ref().to_object(py).clone(), walk_scope(py, scope).to_object(py).clone())))
     })
 }
 
