@@ -14,12 +14,75 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-use crate::lexer::{Token, TokenType};
+use crate::lexer::{Token, TokenType, RustObject};
 use crate::interpreter::{Function, Scope};
 use crate::utils::convert_to_token;
+use image::{ImageBuffer, Rgb, ImageResult, ImageFormat};
+use std::io::Cursor;
 use rand::Rng;
 use pyo3::{prelude::*, types::PyDict};
 use pyo3_asyncio;
+
+#[derive(Clone, Debug)]
+pub struct Image {
+    pub buffer: ImageBuffer<Rgb<u8>, Vec<u8>>
+}
+
+impl Image {
+    pub fn new(width: u32, height: u32, background: [u8; 3]) -> Result<Self, &'static str> {
+        if width < 128 || width > 1920 || height < 128 || height > 1920 {
+            return Err("width and height must be between 128 and 1920");
+        }
+
+        Ok(Self { buffer: ImageBuffer::from_fn(width, height, |_x, _y| { Rgb(background) }) })
+    }
+
+    pub fn write_to(&mut self, bytes: &mut Vec<u8>) -> ImageResult<()> {
+        self.buffer.write_to(&mut Cursor::new(bytes), ImageFormat::Png)
+    }
+
+    pub fn set_pixel(&mut self, x: u32, y: u32, color: [u8; 3]) {
+        if x < self.buffer.width() && y < self.buffer.height() {
+            self.buffer.put_pixel(x, y, Rgb(color));
+        }
+    }
+
+    pub fn draw_line(&mut self, x1: u32, y1: u32, x2: u32, y2: u32, color: [u8; 3]) {
+        let mut x1 = x1 as i32;
+        let mut y1 = y1 as i32;
+        let x2 = x2 as i32;
+        let y2 = y2 as i32;
+
+        let dx = (x2 - x1).abs();
+        let dy = (y2 - y1).abs();
+        let sx = if x1 < x2 { 1 } else { -1 };
+        let sy = if y1 < y2 { 1 } else { -1 };
+
+        let mut err = if dx > dy { dx / 2 } else { -dy / 2 };
+
+        loop {
+            if x1 >= 0 && x1 < self.buffer.width() as i32 && y1 >= 0 && y1 < self.buffer.height() as i32 {
+                self.buffer.put_pixel(x1 as u32, y1 as u32, Rgb(color));
+            }
+
+            if x1 == x2 && y1 == y2 {
+                break;
+            }
+
+            let e2 = err;
+
+            if e2 > -dx {
+                err -= dy;
+                x1 += sx;
+            }
+
+            if e2 < dy {
+                err += dx;
+                y1 += sy;
+            }
+        }
+    }
+}
 
 macro_rules! check_args {
     ($name:ident, $args:ident) => {
@@ -86,7 +149,7 @@ async fn get(name: String, args: Vec<Token>, _scope: &mut Scope) -> Token {
     }
 
     if args[1]._type != TokenType::Int {
-        return Token::new_error(TokenType::TypeError, "get() takes an integer as its second argument".to_string());
+        return Token::new_error(TokenType::TypeError, "get() takes an int as its second argument".to_string());
     }
 
     let index = args[1].number as usize;
@@ -174,15 +237,15 @@ async fn rgb(name: String, args: Vec<Token>, _scope: &mut Scope) -> Token {
     check_args!(name, args, 3);
 
     if args[0]._type != TokenType::Int {
-        return Token::new_error(TokenType::TypeError, "rgb() takes an integer as its first argument".to_string());
+        return Token::new_error(TokenType::TypeError, "rgb() takes an int as its first argument".to_string());
     }
 
     if args[1]._type != TokenType::Int {
-        return Token::new_error(TokenType::TypeError, "rgb() takes an integer as its second argument".to_string());
+        return Token::new_error(TokenType::TypeError, "rgb() takes an int as its second argument".to_string());
     }
 
     if args[2]._type != TokenType::Int {
-        return Token::new_error(TokenType::TypeError, "rgb() takes an integer as its third argument".to_string());
+        return Token::new_error(TokenType::TypeError, "rgb() takes an int as its third argument".to_string());
     }
 
     let r = args[0].number as u64;
@@ -224,6 +287,10 @@ async fn randint(name: String, args: Vec<Token>, _scope: &mut Scope) -> Token {
 async fn _format(name: String, args: Vec<Token>, scope: &mut Scope) -> Token {
     check_args!(name, args);
 
+    if args[0].value.len() > 256 {
+        return Token::new_error(TokenType::Error, "argument is too large".to_string())
+    }
+
     let mut text = args[0].value.chars().peekable();
     let mut formatted_text = String::new();
     let mut index = 1;
@@ -236,10 +303,10 @@ async fn _format(name: String, args: Vec<Token>, scope: &mut Scope) -> Token {
                     if index > args.len() {
                         return Token::new_error(TokenType::IndexError, "not enough arguments".to_string());
                     }
-                    if args[index-1]._type != TokenType::Str {
-                        return Token::new_error(TokenType::TypeError, "all arguments must be strings".to_string());
+                    formatted_text += &_str("str".to_string(), vec![args[index-1].to_owned()], scope).await.value;
+                    if formatted_text.len() > 256 {
+                        return Token::new_error(TokenType::Error, "result is too large".to_string())
                     }
-                    formatted_text += &args[index-1].value;
                     text.next();
                 } else {
                     let mut name = String::new();
@@ -248,10 +315,10 @@ async fn _format(name: String, args: Vec<Token>, scope: &mut Scope) -> Token {
                             let mut found = false;
                             for variable in &scope.variables {
                                 if variable.name == name {
-                                    if variable.value._type != TokenType::Str {
-                                        return Token::new_error(TokenType::TypeError, "all arguments must be strings".to_string());
+                                    formatted_text += &_str("str".to_string(), vec![variable.value.to_owned()], scope).await.value;
+                                    if formatted_text.len() > 256 {
+                                        return Token::new_error(TokenType::Error, "result is too large".to_string())
                                     }
-                                    formatted_text += &variable.value.value;
                                     found = true;
                                     break
                                 }
@@ -270,7 +337,14 @@ async fn _format(name: String, args: Vec<Token>, scope: &mut Scope) -> Token {
             }
         } else {
             formatted_text += &c.to_string();
+            if formatted_text.len() > 256 {
+                return Token::new_error(TokenType::Error, "result is too large".to_string())
+            }
         }
+    }
+
+    if formatted_text.len() > 256 {
+        return Token::new_error(TokenType::Error, "result is too large".to_string())
     }
 
     Token::new_string(formatted_text)
@@ -289,7 +363,26 @@ async fn _str(name: String, args: Vec<Token>, _scope: &mut Scope) -> Token {
         TokenType::Str => args[0].to_owned(),
         TokenType::Int => Token::new_string(args[0].number.to_string()),
         TokenType::Bool => Token::new_string(if args[0].number == 1.0 { "true "} else { "false" }.to_string()),
-        _ => Token::new_error(TokenType::Unsupported, format!("{:?} type is not supported", args[0]._type))
+        TokenType::List => Token::new_string(format!("{:}", args[0]).to_string()),
+        TokenType::None => Token::new_string("none".to_string()),
+        _ => Token::new_error(TokenType::Unsupported, format!("type {:?} is not supported", args[0]._type))
+    }
+}
+
+async fn _int(name: String, args: Vec<Token>, _scope: &mut Scope) -> Token {
+    check_args!(name, args);
+
+    match args[0]._type {
+        TokenType::Str => {
+            if let Ok(number) = args[0].value.parse::<f64>() {
+                return Token::new_int(number)
+            }
+
+            Token::new_error(TokenType::TypeError, format!("type {:?} cannot be converted to int", args[0]._type))
+        },
+        TokenType::Int => args[0].to_owned(),
+        TokenType::Bool => Token::new_int(args[0].number),
+        _ => Token::new_error(TokenType::Unsupported, format!("type {:?} is not supported", args[0]._type))
     }
 }
 
@@ -333,6 +426,107 @@ async fn error(name: String, args: Vec<Token>, _scope: &mut Scope) -> Token {
     Token::new_error(TokenType::Error, args[0].value.to_owned())
 }
 
+async fn _image(name: String, args: Vec<Token>, _scope: &mut Scope) -> Token {
+    check_args!(name, args, 2, 3);
+
+    if args[0]._type != TokenType::Int {
+        return Token::new_error(TokenType::Error, "Image() takes an int as its first argument".to_string());
+    }
+
+    if args[1]._type != TokenType::Int {
+        return Token::new_error(TokenType::Error, "Image() takes an int as its second argument".to_string());
+    }
+
+    let mut background = [255, 255, 255];
+
+    if args.len() >= 3 {
+        if args[2]._type != TokenType::List {
+            return Token::new_error(TokenType::Error, "Image() takes a list of ints as its third argument".to_string());
+        }
+
+        background = [args[2].list[0].number as u8, args[2].list[1].number as u8, args[2].list[2].number as u8];
+    }
+
+    let image = Image::new(args[0].number as u32, args[1].number as u32, background);
+
+    if let Err(error) = image {
+        return Token::new_error(TokenType::Error, error.to_string());
+    }
+
+    Token::new_rustobject(RustObject::Image(image.unwrap()))
+}
+
+async fn image_get_data(object: Token, name: String, args: Vec<Token>, _scope: &mut Scope) -> Token {
+    let RustObject::Image(mut image) = object.rustobject.unwrap() else { unreachable!() };
+
+    let mut bytes = Vec::new();
+    image.write_to(&mut bytes).unwrap();
+
+    Token::new_bytes(bytes)
+}
+
+async fn image_set_pixel(object: Token, name: String, args: Vec<Token>, _scope: &mut Scope) -> Token {
+    check_args!(name, args, 3);
+
+    if args[0]._type != TokenType::Int {
+        return Token::new_error(TokenType::Error, "Image.set_pixel() takes an int as its first argument".to_string());
+    }
+
+    if args[1]._type != TokenType::Int {
+        return Token::new_error(TokenType::Error, "Image.set_pixel() takes an int as its second argument".to_string());
+    }
+
+    if args[2]._type != TokenType::List {
+        return Token::new_error(TokenType::Error, "Image.set_pixel() takes a list of ints as its third argument".to_string());
+    }
+
+    let RustObject::Image(mut image) = object.rustobject.unwrap() else { unreachable!() };
+
+    let x = args[0].number as u32;
+    let y = args[1].number as u32;
+    let color = [args[2].list[0].number as u8, args[2].list[1].number as u8, args[2].list[2].number as u8];
+
+    image.set_pixel(x, y, color);
+
+    Token::new_rustobject(RustObject::Image(image))
+}
+
+async fn image_draw_line(object: Token, name: String, args: Vec<Token>, _scope: &mut Scope) -> Token {
+    check_args!(name, args, 5);
+
+    if args[0]._type != TokenType::Int {
+        return Token::new_error(TokenType::Error, "Image.draw_line() takes an int as its first argument".to_string());
+    }
+
+    if args[1]._type != TokenType::Int {
+        return Token::new_error(TokenType::Error, "Image.draw_line() takes an int as its second argument".to_string());
+    }
+
+    if args[2]._type != TokenType::Int {
+        return Token::new_error(TokenType::Error, "Image.draw_line() takes an int as its third argument".to_string());
+    }
+
+    if args[3]._type != TokenType::Int {
+        return Token::new_error(TokenType::Error, "Image.draw_line() takes an int as its fourth argument".to_string());
+    }
+
+    if args[4]._type != TokenType::List {
+        return Token::new_error(TokenType::Error, "Image.draw_line() takes a list of ints as fifth argument".to_string());
+    }
+
+    let RustObject::Image(mut image) = object.rustobject.unwrap() else { unreachable!() };
+
+    let x1 = args[0].number as u32;
+    let y1 = args[1].number as u32;
+    let x2 = args[2].number as u32;
+    let y2 = args[3].number as u32;
+    let color = [args[4].list[0].number as u8, args[4].list[1].number as u8, args[4].list[2].number as u8];
+
+    image.draw_line(x1, y1, x2, y2, color);
+
+    Token::new_rustobject(RustObject::Image(image))
+}
+
 pub fn get_builtins() -> Vec<Function> {
     vec![
         Function::new_builtin("get"),
@@ -346,8 +540,10 @@ pub fn get_builtins() -> Vec<Function> {
         Function::new_builtin("format"),
         Function::new_builtin("type"),
         Function::new_builtin("str"),
+        Function::new_builtin("int"),
         Function::new_builtin("await"),
-        Function::new_builtin("Error")
+        Function::new_builtin("Error"),
+        Function::new_builtin("Image")
     ]
 }
 
@@ -379,8 +575,37 @@ pub async fn call_builtin(name: String, args: Vec<Token>, scope: &mut Scope) -> 
     wrap!(_format, "format");
     wrap!(_type, "type");
     wrap!(_str, "str");
+    wrap!(_int, "int");
     wrap!(_await, "await");
     wrap!(error, "Error");
+    wrap!(_image, "Image");
+
+    None
+}
+
+fn get_object_name(object: &Token) -> &'static str {
+    match object.rustobject.as_ref().unwrap() {
+        RustObject::Image(_) => "Image",
+        _ => unreachable!()
+    }
+}
+
+pub async fn call_method(object: Token, name: String, args: Vec<Token>, scope: &mut Scope) -> Option<Token> {
+    if let None = object.rustobject {
+        return None;
+    }
+
+    macro_rules! wrap {
+        ($func:ident, $func_name:literal) => {
+            if $func_name == format!("{}_{}", get_object_name(&object), name) {
+                return Some($func(object, name, args, scope).await);
+            }
+        };
+    }
+
+    wrap!(image_get_data, "Image_get_data");
+    wrap!(image_set_pixel, "Image_set_pixel");
+    wrap!(image_draw_line, "Image_draw_line");
 
     None
 }

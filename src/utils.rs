@@ -30,6 +30,7 @@ pub fn convert_token(py: Python, token: Token) -> &PyDict {
     py_token.set_item("value", token.value).unwrap();
     py_token.set_item("number", token.number).unwrap();
     py_token.set_item("list", PyList::new(py, list)).unwrap();
+    py_token.set_item("bytes", token.bytes).unwrap();
 
     if let Some(scope) = token.scope {
         py_token.set_item("scope", walk_scope(py, scope)).unwrap();
@@ -54,6 +55,7 @@ pub fn convert_to_token(py: Python, token: &PyDict) -> Token {
         value: token.get_item("value").unwrap().extract::<String>().unwrap(),
         number: token.get_item("number").unwrap().extract::<f64>().unwrap(),
         list,
+        bytes: token.get_item("bytes").unwrap().extract::<Vec<u8>>().unwrap(),
         scope: if let Some(scope) = token.get_item("scope") {
             if let Ok(scope) = scope.extract::<Vec<&PyDict>>() {
                 Some(get_scope(py, scope))
@@ -67,7 +69,8 @@ pub fn convert_to_token(py: Python, token: &PyDict) -> Token {
             Some(pyobject.into())
         } else {
             None
-        }
+        },
+        rustobject: None
     }
 }
 
@@ -115,6 +118,7 @@ pub fn to_pyobject(py: Python, token: Token) -> Py<PyAny> {
 
             list.into_py(py)
         },
+        TokenType::Bytes => token.bytes.to_object(py),
         TokenType::None => Python::None(py),
         TokenType::Scope => scope_to_pydict(py, token.scope.unwrap()).to_object(py),
         TokenType::PyObject => token.pyobject.unwrap(),

@@ -17,7 +17,7 @@ limitations under the License.
 use crate::lexer::{Token, TokenType};
 use crate::parser::{AST, ASTType};
 use crate::utils::*;
-use crate::builtins::call_builtin;
+use crate::builtins::{call_builtin, call_method};
 use pyo3::{prelude::*, types::{PyTuple, PyDict}};
 use async_recursion::async_recursion;
 
@@ -300,6 +300,22 @@ pub async fn execute_ast(ast: Vec<AST>, scope: &mut Scope, context: Option<Token
 
                                         to_token(py, py_result.unwrap())
                                     });
+                                } else if variable.value._type == TokenType::RustObject {
+                                    let variable = variable.to_owned();
+
+                                    let args_result = execute_ast(node.children, scope, Some(node.token.to_owned()), depth).await;
+
+                                    if check_if_error(&args_result) {
+                                        return args_result;
+                                    }
+
+                                    let args = args_result.list.to_owned();
+
+                                    if let Some(result) = call_method(variable.value, node.token.value, args, scope).await {
+                                        return result;
+                                    }
+
+                                    return result;
                                 } else if variable.value._type == TokenType::Scope {
                                     if let Some(token_scope) = &variable.value.scope {
                                         if let Some(variable_variable) = get_variable(&node.token.value, &mut token_scope.to_owned()) {
@@ -528,13 +544,13 @@ pub async fn execute_ast(ast: Vec<AST>, scope: &mut Scope, context: Option<Token
                     ($op:tt) => {
                         {
                             if context._type != children_result._type {
-                                return Token::new_error(TokenType::TypeError, "Cannot compare types".to_string());
-                            }
-
-                            match context._type {
-                                TokenType::Int | TokenType::Bool => _result.number = if context.number $op children_result.number { 1.0 } else { 0.0 },
-                                TokenType::Str => _result.number = if context.value $op children_result.value { 1.0 } else { 0.0 },
-                                _ => return Token::new_error(TokenType::TypeError, "Cannot compare types".to_string())
+                                _result.number = 0.0;
+                            } else {
+                                match context._type {
+                                    TokenType::Int | TokenType::Bool | TokenType::None => _result.number = if context.number $op children_result.number { 1.0 } else { 0.0 },
+                                    TokenType::Str => _result.number = if context.value $op children_result.value { 1.0 } else { 0.0 },
+                                    _ => return Token::new_error(TokenType::TypeError, "Cannot compare types".to_string())
+                                }
                             }
 
                             _result = Token::new_bool(if _result.number == 0.0 { "false" } else { "true" }.to_string());
@@ -558,6 +574,9 @@ pub async fn execute_ast(ast: Vec<AST>, scope: &mut Scope, context: Option<Token
                         TokenType::Str => {
                             _result.number = if children_result.value == "" { 1.0 } else { 0.0 };
                             _result = Token::new_bool(if _result.number == 0.0 { "false" } else { "true" }.to_string());
+                        },
+                        TokenType::None => {
+                            _result = Token::new_bool("true".to_string());
                         },
                         _ => return Token::new_error(TokenType::TypeError, "Cannot compare types".to_string())
                     },
@@ -587,7 +606,7 @@ pub async fn execute_ast(ast: Vec<AST>, scope: &mut Scope, context: Option<Token
                         TokenType::Divide |
                         TokenType::Modulo => {
                             let stack_len = stack.len();
-                            
+
                             let left = stack[stack_len - 2].to_owned();
                             let right = stack[stack_len - 1].to_owned();
 
@@ -605,7 +624,7 @@ pub async fn execute_ast(ast: Vec<AST>, scope: &mut Scope, context: Option<Token
                         },
                         TokenType::Var => {
                             result = execute_ast(vec![children], scope, None, depth).await;
-                            
+
                             if check_if_error(&result) {
                                 return result;
                             }

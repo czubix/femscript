@@ -14,9 +14,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
-from femscript import generate_tokens, generate_ast, execute_ast
-from typing import List, Dict, Optional, Union, TypedDict, Callable
 import asyncio, math
+
+from femscript import generate_tokens, generate_ast, execute_ast
+
+from typing import List, Dict, Optional, Union, TypedDict, Callable, Any
 
 class Scope(dict):
     format_depth = 0
@@ -37,6 +39,7 @@ types = {
     "Bool": bool,
     "None": type(None),
     "List": list,
+    "Bytes": bytes,
     "Scope": dict
 }
 
@@ -45,6 +48,7 @@ class Token(TypedDict):
     value: str
     number: float
     list: List["Token"]
+    bytes: bytes
     scope: Optional[List["Variable"]]
     pyobject: Optional[object]
 
@@ -70,9 +74,7 @@ def var(name: str, value: Optional[object] = None, *, variables: Optional[List[V
 
         return Variable(name=name, value=token)
 
-    variable = Variable(name=name, value=Femscript.to_fs(value))
-
-    return variable
+    return Variable(name=name, value=Femscript.to_fs(value))
 
 class FemscriptException(Exception):
     pass
@@ -85,7 +87,8 @@ class Femscript:
         self._variables = variables or []
         self._functions = functions or []
 
-        self.parse(code)
+        if code is not None:
+            self.parse(code)
 
     def parse(self, code: Optional[str] = None) -> None:
         self.tokens = generate_tokens(code or "")
@@ -105,16 +108,17 @@ class Femscript:
         return {item["name"]: self.to_py(item["value"]) for item in self._variables}
 
     @classmethod
-    def fs_type(cls, obj: object) -> str:
+    def fs_type(cls, obj: Any) -> str:
         return {**{value: key for key, value in types.items()}, int: "Int"}.get(type(obj), "PyObject")
 
     @classmethod
-    def to_fs(cls, obj: object) -> Token:
+    def to_fs(cls, obj: Any) -> Token:
         token = Token(
             type = _type if (_type := cls.fs_type(obj)) else "PyObject",
             value = "",
             number = 0.0,
-            list = []
+            list = [],
+            bytes = b""
         )
 
         token[result[0]] = (result := {
@@ -122,6 +126,7 @@ class Femscript:
             "Int": (_int := lambda: ("number", float(obj))),
             "Bool": _int,
             "List": lambda: ("list", [cls.to_fs(obj) for obj in obj]),
+            "Bytes": lambda: ("bytes", obj),
             "None": lambda: ("type", "None"),
             "Scope": lambda: ("scope", [{"name": key, "value": cls.to_fs(value)} for key, value in obj.items()])
         }.get(_type, lambda: ("pyobject", obj))())[1]
@@ -129,7 +134,7 @@ class Femscript:
         return token
 
     @classmethod
-    def to_py(cls, token: Token) -> object:
+    def to_py(cls, token: Token) -> Any:
         if "Error" in token["type"]:
             return FemscriptException(token["value"])
 
@@ -138,6 +143,7 @@ class Femscript:
             "Int": lambda: n if not (n := token["number"]).is_integer() else math.floor(n),
             "Bool": lambda: bool(token["number"]),
             "List": lambda: [cls.to_py(token) for token in token["list"]],
+            "Bytes": lambda: bytes(token["bytes"]),
             "None": lambda: None,
             "Scope": lambda: Scope(**{name: cls.to_py(token) for name, token in token.get("scope", {}).items()}),
             "PyObject": lambda: token["pyobject"]
@@ -152,7 +158,7 @@ class Femscript:
             list = []
         )
 
-    def wrap_function(self, func: Optional[Callable[..., object]] = None, *, func_name: Optional[str] = None, with_name: Optional[bool] = False) -> object:
+    def wrap_function(self, func: Optional[Callable[..., object]] = None, *, func_name: Optional[str] = None, with_name: Optional[bool] = False) -> Any:
         def wrapper(func: Callable[..., object]):
             if asyncio.iscoroutinefunction(func) == True:
                 def wrapper(name: str, args: Union[List[Token], Token], scope: List[Variable]) -> Token:
@@ -198,7 +204,7 @@ class Femscript:
 
         return wrapper
 
-    async def execute(self, *, memory_limit: Optional[int] = 1024 * 1024 * 1024, max_variables: Optional[int] = 1000, max_depth: Optional[int] = 1000, frame_function: Optional[Callable[[Variable], Token]] = None, debug: Optional[bool] = False) -> object:
+    async def execute(self, *, memory_limit: Optional[int] = 1024 * 1024 * 1024, max_variables: Optional[int] = 1000, max_depth: Optional[int] = 1000, frame_function: Optional[Callable[[Variable], Token]] = None, debug: Optional[bool] = False) -> Any:
         result, scope = await execute_ast(self.ast, self._variables, self._functions, debug)
         self._variables = [{"name": key, "value": value} for key, value in scope.items()]
 

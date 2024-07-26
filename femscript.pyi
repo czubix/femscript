@@ -5,6 +5,7 @@ class Token(TypedDict):
     value: str
     number: float
     list: List[Token]
+    bytes: bytes
     scope: Optional[List[Variable]]
     pyobject: Optional[object]
 

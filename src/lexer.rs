@@ -20,6 +20,7 @@ use std::str::FromStr;
 use std::{iter::Peekable, collections::HashMap};
 use pyo3::{prelude::Py, types::PyAny};
 use crate::interpreter::Scope;
+use crate::builtins::Image as ImageStruct;
 
 #[allow(dead_code)]
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
@@ -40,10 +41,10 @@ pub enum TokenType {
     Func, Import,
     Return,
 
-    Var, Str, Int,
+    Var, Str, Int, Bytes,
     Bool, None,
     List, Scope,
-    PyObject,
+    PyObject, RustObject,
 
     Error, Undefined, RecursionError, SyntaxError, TypeError, IndexError, Unsupported
 }
@@ -81,14 +82,19 @@ impl FromStr for TokenType {
             Func, Import,
             Return,
 
-            Var, Str, Int,
+            Var, Str, Int, Bytes,
             Bool, None,
             List, Scope,
-            PyObject,
+            PyObject, RustObject,
 
             Error, Undefined, RecursionError, SyntaxError, TypeError, IndexError, Unsupported
         )
     }
+}
+
+#[derive(Clone, Debug)]
+pub enum RustObject {
+    Image(ImageStruct)
 }
 
 #[derive(Clone, Debug)]
@@ -97,8 +103,10 @@ pub struct Token {
     pub value: String,
     pub number: f64,
     pub list: Vec<Token>,
+    pub bytes: Vec<u8>,
     pub scope: Option<Scope>,
-    pub pyobject: Option<Py<PyAny>>
+    pub pyobject: Option<Py<PyAny>>,
+    pub rustobject: Option<RustObject>
 }
 
 impl Display for Token {
@@ -121,8 +129,10 @@ impl Token {
             value: String::new(),
             number: 0.0,
             list: Vec::new(),
+            bytes: Vec::new(),
             scope: None,
-            pyobject: None
+            pyobject: None,
+            rustobject: None
         }
     }
 
@@ -132,8 +142,10 @@ impl Token {
             value: format!("{:?}: {}", error_type, error_text),
             number: 0.0,
             list: Vec::new(),
+            bytes: Vec::new(),
             scope: None,
-            pyobject: None
+            pyobject: None,
+            rustobject: None
         }
     }
 
@@ -143,8 +155,10 @@ impl Token {
             value: String::new(),
             number: 0.0,
             list: Vec::new(),
+            bytes: Vec::new(),
             scope: None,
-            pyobject: None
+            pyobject: None,
+            rustobject: None
         }
     }
 
@@ -154,8 +168,10 @@ impl Token {
             value,
             number: 0.0,
             list: Vec::new(),
+            bytes: Vec::new(),
             scope: None,
-            pyobject: None
+            pyobject: None,
+            rustobject: None
         }
     }
 
@@ -165,8 +181,10 @@ impl Token {
             value,
             number: 0.0,
             list: Vec::new(),
+            bytes: Vec::new(),
             scope: None,
-            pyobject: None
+            pyobject: None,
+            rustobject: None
         }
     }
 
@@ -176,8 +194,10 @@ impl Token {
             value: String::new(),
             number,
             list: Vec::new(),
+            bytes: Vec::new(),
             scope: None,
-            pyobject: None
+            pyobject: None,
+            rustobject: None
         }
     }
 
@@ -191,8 +211,10 @@ impl Token {
                 _ => unreachable!()
             },
             list: Vec::new(),
+            bytes: Vec::new(),
             scope: None,
-            pyobject: None
+            pyobject: None,
+            rustobject: None
         }
     }
 
@@ -202,8 +224,23 @@ impl Token {
             value: String::new(),
             number: 0.0,
             list,
+            bytes: Vec::new(),
             scope: None,
-            pyobject: None
+            pyobject: None,
+            rustobject: None
+        }
+    }
+
+    pub fn new_bytes(bytes: Vec<u8>) -> Self {
+        Self {
+            _type: TokenType::Bytes,
+            value: String::new(),
+            number: 0.0,
+            list: Vec::new(),
+            bytes,
+            scope: None,
+            pyobject: None,
+            rustobject: None
         }
     }
 
@@ -213,8 +250,10 @@ impl Token {
             value: String::new(),
             number: 0.0,
             list: Vec::new(),
+            bytes: Vec::new(),
             scope: Some(scope),
-            pyobject: None
+            pyobject: None,
+            rustobject: None
         }
     }
 
@@ -224,8 +263,23 @@ impl Token {
             value: String::new(),
             number: 0.0,
             list: Vec::new(),
+            bytes: Vec::new(),
             scope: None,
-            pyobject: Some(pyobject)
+            pyobject: Some(pyobject),
+            rustobject: None
+        }
+    }
+
+    pub fn new_rustobject(rustobject: RustObject) -> Self {
+        Self {
+            _type: TokenType::RustObject,
+            value: String::new(),
+            number: 0.0,
+            list: Vec::new(),
+            bytes: Vec::new(),
+            scope: None,
+            pyobject: None,
+            rustobject: Some(rustobject)
         }
     }
 }
@@ -549,7 +603,7 @@ pub fn generate_tokens(code: &str) -> Vec<Token> {
     //                 end = token;
     //                 break
     //             }
-                
+
     //             to_parse.push(&token);
     //         }
 
