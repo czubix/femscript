@@ -14,9 +14,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-use std::str::Chars;
+use std::str::{Chars, FromStr};
 use std::fmt::Display;
-use std::str::FromStr;
+use std::ops::{Add, Sub, Mul, Div, Rem};
+use std::cmp::{PartialEq, PartialOrd};
 use std::{iter::Peekable, collections::HashMap};
 use pyo3::{prelude::Py, types::PyAny};
 use crate::interpreter::Scope;
@@ -109,6 +110,10 @@ pub struct Token {
     pub rustobject: Option<RustObject>
 }
 
+fn unsupported_operand(operator: &str, _self: Token, other: Token) -> Token {
+    Token::new_error(TokenType::TypeError, format!("unsupported operand type(s) for {operator}: '{:?}' and '{:?}'", _self._type, other._type))
+}
+
 impl Display for Token {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", match self._type {
@@ -119,6 +124,152 @@ impl Display for Token {
             TokenType::List => format!("[{}]", self.list.iter().map(|x| format!("{}", x)).collect::<Vec<String>>().join(", ")),
             _ => self.value.to_owned()
         })
+    }
+}
+
+impl Add for Token {
+    type Output = Self;
+
+    fn add(self, other: Self) -> Self::Output {
+        if self._type != other._type {
+            return unsupported_operand("+", self, other);
+        }
+
+        match self._type {
+            TokenType::Str => Token::new_string(self.value + &other.value),
+            TokenType::Int => Token::new_int(self.number + other.number),
+            TokenType::List => Token::new_list(self.list.iter().chain(&other.list).cloned().collect()),
+            _ => unsupported_operand("+", self, other)
+        }
+    }
+}
+
+impl Sub for Token {
+    type Output = Self;
+
+    fn sub(self, other: Self) -> Self::Output {
+        if self._type != other._type {
+            return unsupported_operand("-", self, other);
+        }
+
+        match self._type {
+            TokenType::Int => Token::new_int(self.number - other.number),
+            _ => unsupported_operand("-", self, other)
+        }
+    }
+}
+
+impl Mul for Token {
+    type Output = Self;
+
+    fn mul(self, other: Self) -> Self::Output {
+        if self._type != other._type {
+            return unsupported_operand("*", self, other);
+        }
+
+        match self._type {
+            TokenType::Int => Token::new_int(self.number * other.number),
+            _ => unsupported_operand("*", self, other)
+        }
+    }
+}
+
+impl Div for Token {
+    type Output = Self;
+
+    fn div(self, other: Self) -> Self::Output {
+        if self._type != other._type {
+            return unsupported_operand("/", self, other);
+        }
+
+        match self._type {
+            TokenType::Int => Token::new_int(self.number / other.number),
+            _ => unsupported_operand("/", self, other)
+        }
+    }
+}
+
+impl Rem for Token {
+    type Output = Self;
+
+    fn rem(self, other: Self) -> Self::Output {
+        if self._type != other._type {
+            return unsupported_operand("%", self, other);
+        }
+
+        match self._type {
+            TokenType::Int => Token::new_int(self.number % other.number),
+            _ => unsupported_operand("%", self, other)
+        }
+    }
+}
+
+impl PartialEq for Token {
+    fn eq(&self, other: &Self) -> bool {
+        if self._type != other._type {
+            return false;
+        }
+
+        match self._type {
+            TokenType::Str => self.value == other.value,
+            TokenType::Int | TokenType::Bool => self.number == self.number,
+            TokenType::List => self.list == other.list,
+            _ => false
+        }
+    }
+
+    fn ne(&self, other: &Self) -> bool {
+        !(self == other)
+    }
+}
+
+impl PartialOrd for Token {
+    fn gt(&self, other: &Self) -> bool {
+        if self._type != other._type {
+            return false;
+        }
+
+        match self._type {
+            TokenType::Int => self.number > other.number,
+            _ => false
+        }
+    }
+
+    fn ge(&self, other: &Self) -> bool {
+        if self._type != other._type {
+            return false;
+        }
+
+        match self._type {
+            TokenType::Int => self.number >= other.number,
+            _ => false
+        }
+    }
+
+    fn lt(&self, other: &Self) -> bool {
+        if self._type != other._type {
+            return false;
+        }
+
+        match self._type {
+            TokenType::Int => self.number < other.number,
+            _ => false
+        }
+    }
+
+    fn le(&self, other: &Self) -> bool {
+        if self._type != other._type {
+            return false;
+        }
+
+        match self._type {
+            TokenType::Int => self.number <= other.number,
+            _ => false
+        }
+    }
+
+    fn partial_cmp(&self, _other: &Self) -> Option<std::cmp::Ordering> {
+        todo!()
     }
 }
 
@@ -134,6 +285,70 @@ impl Token {
             pyobject: None,
             rustobject: None
         }
+    }
+
+    pub fn eq(self, other: Self) -> Self {
+        Token::new_bool(if self == other { "true" } else { "false" }.to_string())
+    }
+
+    pub fn ne(self, other: Self) -> Self {
+        Token::new_bool(if self != other { "true" } else { "false" }.to_string())
+    }
+
+    pub fn gt(self, other: Self) -> Self {
+        if self._type != other._type {
+            return unsupported_operand(">", self, other)
+        }
+
+        Token::new_bool(if self > other { "true" } else { "false" }.to_string())
+    }
+
+    pub fn ge(self, other: Self) -> Self {
+        if self._type != other._type {
+            return unsupported_operand(">=", self, other)
+        }
+
+        Token::new_bool(if self >= other { "true" } else { "false" }.to_string())
+    }
+
+    pub fn lt(self, other: Self) -> Self {
+        if self._type != other._type {
+            return unsupported_operand("<", self, other)
+        }
+
+        Token::new_bool(if self < other { "true" } else { "false" }.to_string())
+    }
+
+    pub fn le(self, other: Self) -> Self {
+        if self._type != other._type {
+            return unsupported_operand("<=", self, other)
+        }
+
+        Token::new_bool(if self <= other { "true" } else { "false" }.to_string())
+    }
+
+    pub fn and(self, other: Self) -> Self {
+        Token::new_bool(if self.number != 0.0 && other.number != 0.0 { "true" } else { "false" }.to_string())
+    }
+
+    pub fn or(self, other: Self) -> Self {
+        if self.number > other.number {
+            self
+        } else {
+            other
+        }
+    }
+
+    pub fn not(&self) -> Self {
+        Token::new_bool(
+            if match self._type {
+                TokenType::Int | TokenType::Bool => self.number == 0.0,
+                TokenType::Str => self.value == "",
+                TokenType::List => self.list.len() == 0,
+                TokenType::None => true,
+                _ => return Token::new_error(TokenType::TypeError, format!("unsupported operand type for !: '{:?}'", self._type))
+            } { "true" } else { "false" }.to_string()
+        )
     }
 
     pub fn new_error(error_type: TokenType, error_text: String) -> Self {

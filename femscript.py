@@ -18,7 +18,7 @@ import asyncio, math
 
 from femscript import generate_tokens, generate_ast, execute_ast
 
-from typing import List, Dict, Optional, Union, TypedDict, Callable, Any
+from typing import Optional, TypedDict, Callable, Any
 
 class Scope(dict):
     format_depth = 0
@@ -47,15 +47,15 @@ class Token(TypedDict):
     type: str
     value: str
     number: float
-    list: List["Token"]
+    list: list["Token"]
     bytes: bytes
-    scope: Optional[List["Variable"]]
+    scope: Optional[list["Variable"]]
     pyobject: Optional[object]
 
 class AST(TypedDict):
     type: str
     token: Token
-    children: List["AST"]
+    children: list["AST"]
 
 class Variable(TypedDict):
     name: str
@@ -63,9 +63,9 @@ class Variable(TypedDict):
 
 class Function(TypedDict):
     name: str
-    func: Callable[[List[Token], List[Variable]], None]
+    func: Callable[[list[Token], list[Variable]], None]
 
-def var(name: str, value: Optional[object] = None, *, variables: Optional[List[Variable]] = None) -> Variable:
+def var(name: str, value: Optional[object] = None, *, variables: Optional[list[Variable]] = None) -> Variable:
     if variables is not None:
         token = Femscript.to_fs({})
 
@@ -80,9 +80,9 @@ class FemscriptException(Exception):
     pass
 
 class Femscript:
-    def __init__(self, code: Optional[str] = None, *, variables: Optional[List[Variable]] = None, functions: Optional[List[Callable[[str, List[Token], List[Variable]], Token]]] = None) -> None:
-        self.tokens: List[Token]
-        self.ast: List[AST]
+    def __init__(self, code: Optional[str] = None, *, variables: Optional[list[Variable]] = None, functions: Optional[list[Callable[[str, list[Token], list[Variable]], Token]]] = None) -> None:
+        self.tokens: list[Token]
+        self.ast: list[AST]
 
         self._variables = variables or []
         self._functions = functions or []
@@ -104,7 +104,7 @@ class Femscript:
         self._variables[index] = variable
 
     @property
-    def variables(self) -> Dict[str, object]:
+    def variables(self) -> dict[str, object]:
         return {item["name"]: self.to_py(item["value"]) for item in self._variables}
 
     @classmethod
@@ -161,7 +161,7 @@ class Femscript:
     def wrap_function(self, func: Optional[Callable[..., object]] = None, *, func_name: Optional[str] = None, with_name: Optional[bool] = False) -> Any:
         def wrapper(func: Callable[..., object]):
             if asyncio.iscoroutinefunction(func) == True:
-                def wrapper(name: str, args: Union[List[Token], Token], scope: List[Variable]) -> Token:
+                def wrapper(name: str, args: list[Token] | Token, scope: list[Variable]) -> Token:
                     async def wrapper():
                         try:
                             if not isinstance(args, tuple) and args["type"] == "Scope":
@@ -177,7 +177,7 @@ class Femscript:
 
                     return self.to_fs(wrapper())
             else:
-                def wrapper(name: str, args: Union[List[Token], Token], scope: List[Variable]) -> Token:
+                def wrapper(name: str, args: list[Token] | Token, scope: list[Variable]) -> Token:
                     try:
                         if not isinstance(args, tuple) and args["type"] == "Scope":
                             return self.to_fs(

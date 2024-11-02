@@ -111,12 +111,14 @@ pub fn get_function<'a>(name: &'a str, scope: &'a mut Scope) -> Option<&'a Funct
     None
 }
 
-fn check_if_error(token: &Token) -> bool {
+pub fn check_if_error(token: &Token) -> bool {
     token._type == TokenType::Error ||
     token._type == TokenType::Undefined ||
     token._type == TokenType::RecursionError ||
     token._type == TokenType::SyntaxError ||
-    token._type == TokenType::TypeError
+    token._type == TokenType::TypeError ||
+    token._type == TokenType::IndexError ||
+    token._type == TokenType::Unsupported
 }
 
 #[async_recursion]
@@ -532,7 +534,7 @@ pub async fn execute_ast(ast: Vec<AST>, scope: &mut Scope, context: Option<Token
                     return Token::new_error(TokenType::SyntaxError, "Cannot assign to a variable outside of scope".to_string());
                 }
 
-                let mut _result = Token::new_int(context.number);
+                let mut _result = context.to_owned();
 
                 let children_result = execute_ast(node.children, scope, Some(_result.to_owned()), depth).await;
 
@@ -540,60 +542,23 @@ pub async fn execute_ast(ast: Vec<AST>, scope: &mut Scope, context: Option<Token
                     return children_result;
                 }
 
-                macro_rules! cumpare {
-                    ($op:tt) => {
-                        {
-                            if context._type != children_result._type {
-                                _result.number = 0.0;
-                            } else {
-                                match context._type {
-                                    TokenType::Int | TokenType::Bool | TokenType::None => _result.number = if context.number $op children_result.number { 1.0 } else { 0.0 },
-                                    TokenType::Str => _result.number = if context.value $op children_result.value { 1.0 } else { 0.0 },
-                                    _ => return Token::new_error(TokenType::TypeError, "Cannot compare types".to_string())
-                                }
-                            }
-
-                            _result = Token::new_bool(if _result.number == 0.0 { "false" } else { "true" }.to_string());
-                        }
-                    };
-                }
-
-                match node.token._type {
-                    TokenType::Plus => _result.number += children_result.number,
-                    TokenType::Minus => _result.number -= children_result.number,
-                    TokenType::Multiply => _result.number *= children_result.number,
-                    TokenType::Divide => _result.number /= children_result.number,
-                    TokenType::Modulo => _result.number %= children_result.number,
-                    TokenType::EqualTo => cumpare!(==),
-                    TokenType::NotEqual => cumpare!(!=),
-                    TokenType::Not => match children_result._type {
-                        TokenType::Int | TokenType::Bool => {
-                            _result.number = if children_result.number == 0.0 { 1.0 } else { 0.0 };
-                            _result = Token::new_bool(if _result.number == 0.0 { "false" } else { "true" }.to_string());
-                        },
-                        TokenType::Str => {
-                            _result.number = if children_result.value == "" { 1.0 } else { 0.0 };
-                            _result = Token::new_bool(if _result.number == 0.0 { "false" } else { "true" }.to_string());
-                        },
-                        TokenType::None => {
-                            _result = Token::new_bool("true".to_string());
-                        },
-                        _ => return Token::new_error(TokenType::TypeError, "Cannot compare types".to_string())
-                    },
-                    TokenType::Greater => cumpare!(>),
-                    TokenType::Less => cumpare!(<),
-                    TokenType::GreaterEqual => cumpare!(>=),
-                    TokenType::LessEqual => cumpare!(<=),
-                    TokenType::And => _result.number = if context.number != 0.0 && children_result.number != 0.0 { 1.0 } else { 0.0 },
-                    TokenType::Or => _result.number = if context.number != 0.0 || children_result.number != 0.0 { 1.0 } else { 0.0 },
-                    _ => _result = Token::new_error(TokenType::SyntaxError, "Unknown operator".to_string())
-                }
-
-                if check_if_error(&_result) {
-                    return _result;
-                }
-
-                result = _result;
+                result = match node.token._type {
+                    TokenType::Plus => _result + children_result,
+                    TokenType::Minus => result - children_result,
+                    TokenType::Multiply => _result * children_result,
+                    TokenType::Divide => _result / children_result,
+                    TokenType::Modulo => _result % children_result,
+                    TokenType::EqualTo => _result.eq(children_result),
+                    TokenType::NotEqual => result.ne(children_result),
+                    TokenType::Greater => _result.gt(children_result),
+                    TokenType::Less => _result.lt(children_result),
+                    TokenType::GreaterEqual => _result.ge(children_result),
+                    TokenType::LessEqual => _result.le(children_result),
+                    TokenType::And => _result.and(children_result),
+                    TokenType::Or => _result.or(children_result),
+                    TokenType::Not => children_result.not(),
+                    _ => Token::new_error(TokenType::SyntaxError, "Unknown operator".to_string())
+                };
             },
             ASTType::Equation => {
                 let mut stack: Vec<Token> = Vec::new();

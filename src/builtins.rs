@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 use crate::lexer::{Token, TokenType, RustObject};
-use crate::interpreter::{Function, Scope};
+use crate::interpreter::{execute_ast, get_function, check_if_error, Function, Scope};
 use crate::utils::convert_to_token;
 use image::{ImageBuffer, Rgb, ImageResult, ImageFormat};
 use std::io::Cursor;
@@ -213,11 +213,11 @@ async fn join(name: String, args: Vec<Token>, _scope: &mut Scope) -> Token {
     check_args!(name, args, 2);
 
     if args[0]._type != TokenType::List {
-        return Token::new_error(TokenType::TypeError, "has() takes a list as its first argument".to_string());
+        return Token::new_error(TokenType::TypeError, "join() takes a list as its first argument".to_string());
     }
 
     if args[1]._type != TokenType::Str {
-        return Token::new_error(TokenType::TypeError, "split() takes a string as its second argument".to_string());
+        return Token::new_error(TokenType::TypeError, "join() takes a string as its second argument".to_string());
     }
 
     Token::new_string(args[0].list.to_owned().into_iter().map(|token| token.value).collect::<Vec<String>>().join(&args[1].value))
@@ -304,7 +304,7 @@ async fn _format(name: String, args: Vec<Token>, scope: &mut Scope) -> Token {
                         return Token::new_error(TokenType::IndexError, "not enough arguments".to_string());
                     }
                     formatted_text += &_str("str".to_string(), vec![args[index-1].to_owned()], scope).await.value;
-                    if formatted_text.len() > 256 {
+                    if formatted_text.len() > 1024 {
                         return Token::new_error(TokenType::Error, "result is too large".to_string())
                     }
                     text.next();
@@ -316,7 +316,7 @@ async fn _format(name: String, args: Vec<Token>, scope: &mut Scope) -> Token {
                             for variable in &scope.variables {
                                 if variable.name == name {
                                     formatted_text += &_str("str".to_string(), vec![variable.value.to_owned()], scope).await.value;
-                                    if formatted_text.len() > 256 {
+                                    if formatted_text.len() > 1024 {
                                         return Token::new_error(TokenType::Error, "result is too large".to_string())
                                     }
                                     found = true;
@@ -337,13 +337,13 @@ async fn _format(name: String, args: Vec<Token>, scope: &mut Scope) -> Token {
             }
         } else {
             formatted_text += &c.to_string();
-            if formatted_text.len() > 256 {
+            if formatted_text.len() > 1024 {
                 return Token::new_error(TokenType::Error, "result is too large".to_string())
             }
         }
     }
 
-    if formatted_text.len() > 256 {
+    if formatted_text.len() > 1024 {
         return Token::new_error(TokenType::Error, "result is too large".to_string())
     }
 
@@ -384,6 +384,47 @@ async fn _int(name: String, args: Vec<Token>, _scope: &mut Scope) -> Token {
         TokenType::Bool => Token::new_int(args[0].number),
         _ => Token::new_error(TokenType::Unsupported, format!("type {:?} is not supported", args[0]._type))
     }
+}
+
+async fn map(name: String, args: Vec<Token>, scope: &mut Scope) -> Token {
+    check_args!(name, args, 2);
+
+    if args[0]._type != TokenType::List {
+        return Token::new_error(TokenType::TypeError, "map() takes a list as its first argument".to_string());
+    }
+
+    if args[1]._type != TokenType::Str {
+        return Token::new_error(TokenType::TypeError, "map() takes a string as its second argument".to_string());
+    }
+
+    let mut result_list: Vec<Token> = Vec::new();
+
+    for arg in args[0].list.to_owned() {
+        if let Some(function) = get_function(&args[1].value, &mut scope.to_owned()) {
+            if function.args.len() != 1 {
+                return Token::new_error(TokenType::TypeError, format!("function {} should take 1 argument", function.name));
+            }
+
+            if let Some(body) = &function.body {
+                let mut function_scope = Scope {
+                    variables: scope.variables.to_owned(),
+                    functions: scope.functions.to_owned()
+                };
+
+                function_scope.push_variable(function.args[0].as_str(), arg);
+
+                let result = execute_ast(body.to_owned(), &mut function_scope, Some(Token::new(TokenType::Func)), 0).await;
+
+                if check_if_error(&result) {
+                    return result;
+                }
+
+                result_list.push(result);
+            }
+        }
+    }
+
+    Token::new_list(result_list)
 }
 
 async fn _await(name: String, args: Vec<Token>, _scope: &mut Scope) -> Token {
@@ -541,6 +582,7 @@ pub fn get_builtins() -> Vec<Function> {
         Function::new_builtin("type"),
         Function::new_builtin("str"),
         Function::new_builtin("int"),
+        Function::new_builtin("map"),
         Function::new_builtin("await"),
         Function::new_builtin("Error"),
         Function::new_builtin("Image")
@@ -576,6 +618,7 @@ pub async fn call_builtin(name: String, args: Vec<Token>, scope: &mut Scope) -> 
     wrap!(_type, "type");
     wrap!(_str, "str");
     wrap!(_int, "int");
+    wrap!(map, "map");
     wrap!(_await, "await");
     wrap!(error, "Error");
     wrap!(_image, "Image");

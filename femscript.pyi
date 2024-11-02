@@ -1,18 +1,18 @@
-from typing import TypedDict, List, Callable, Optional
+from typing import TypedDict, Callable, Optional
 
 class Token(TypedDict):
     type: str
     value: str
     number: float
-    list: List[Token]
+    list: list[Token]
     bytes: bytes
-    scope: Optional[List[Variable]]
+    scope: Optional[list[Variable]]
     pyobject: Optional[object]
 
 class AST(TypedDict):
     type: str
     token: Token
-    children: List[AST]
+    children: list[AST]
 
 class Variable(TypedDict):
     name: str
@@ -20,13 +20,13 @@ class Variable(TypedDict):
 
 class Function(TypedDict):
     name: str
-    func: Callable[[List[Token], List[Variable]], None]
+    func: Callable[[list[Token], list[Variable]], None]
 
-def generate_tokens(code: str) -> List[Token]:
+def generate_tokens(code: str) -> list[Token]:
     pass
 
-def generate_ast(tokens: List[Token]) -> List[AST]:
+def generate_ast(tokens: list[Token]) -> list[AST]:
     pass
 
-def execute_ast(ast: List[AST], variables: List[Variable], functions: List[Function], debug: bool) -> Token:
+def execute_ast(ast: list[AST], variables: list[Variable], functions: list[Function], debug: bool) -> Token:
     pass
