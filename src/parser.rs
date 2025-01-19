@@ -1,5 +1,5 @@
 /*
-Copyright 2022-2024 czubix
+Copyright 2022-2025 czubix
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -27,7 +27,7 @@ pub enum ASTType {
     Assign,
     Token,
     Expression,
-    Equation,
+    // Equation,
     Keyword,
     Error
 }
@@ -53,7 +53,7 @@ impl FromStr for ASTType {
             Assign,
             Token,
             Expression,
-            Equation,
+            // Equation,
             Keyword,
             Error
         )
@@ -182,7 +182,7 @@ fn get_ast_in_list<'a, 'b>(tokens: &'a mut Peekable<Iter<&'b Token>>, from: Toke
         ast_in_list.append(&mut generate_ast(element_tokens))
     }
 
-    bail!("Unclosed list")
+    bail!("unclosed list")
 }
 
 pub fn generate_ast(tokens: Vec<&Token>) -> Vec<AST> {

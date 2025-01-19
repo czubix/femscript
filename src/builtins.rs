@@ -1,5 +1,5 @@
 /*
-Copyright 2022-2024 czubix
+Copyright 2022-2025 czubix
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -361,7 +361,7 @@ async fn _str(name: String, args: Vec<Token>, _scope: &mut Scope) -> Token {
 
     match args[0]._type {
         TokenType::Str => args[0].to_owned(),
-        TokenType::Int => Token::new_string(args[0].number.to_string()),
+        TokenType::Int => Token::new_string(if args[0].number == 0.0 { "0".to_string() } else { args[0].number.to_string() }),
         TokenType::Bool => Token::new_string(if args[0].number == 1.0 { "true "} else { "false" }.to_string()),
         TokenType::List => Token::new_string(format!("{:}", args[0]).to_string()),
         TokenType::None => Token::new_string("none".to_string()),

@@ -1,5 +1,5 @@
 /*
-Copyright 2022-2024 czubix
+Copyright 2022-2025 czubix
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -107,7 +107,7 @@ pub struct Token {
     pub bytes: Vec<u8>,
     pub scope: Option<Scope>,
     pub pyobject: Option<Py<PyAny>>,
-    pub rustobject: Option<RustObject>
+    pub rustobject: Option<RustObject>,
 }
 
 fn unsupported_operand(operator: &str, _self: Token, other: Token) -> Token {
@@ -212,8 +212,9 @@ impl PartialEq for Token {
 
         match self._type {
             TokenType::Str => self.value == other.value,
-            TokenType::Int | TokenType::Bool => self.number == self.number,
+            TokenType::Int | TokenType::Bool => self.number == other.number,
             TokenType::List => self.list == other.list,
+            TokenType::None => self._type == other._type,
             _ => false
         }
     }
@@ -269,7 +270,7 @@ impl PartialOrd for Token {
     }
 
     fn partial_cmp(&self, _other: &Self) -> Option<std::cmp::Ordering> {
-        todo!()
+        unreachable!()
     }
 }
 
@@ -611,7 +612,7 @@ pub fn generate_tokens(code: &str) -> Vec<Token> {
         }
     }
 
-    let mut is_previous_num = false;
+    let mut multiplier = 1.0;
 
     while let Some(c) = code.next() {
         let token = match c {
@@ -628,46 +629,12 @@ pub fn generate_tokens(code: &str) -> Vec<Token> {
             '+' => check_next(&mut code, TokenType::Plus, TokenType::PlusEqual, '='),
             '-' => {
                 if let Some(&c) = code.peek() {
-                    if c.is_numeric() && !is_previous_num {
-                        let mut num = String::new();
-                        let mut float = false;
-
-                        while let Some(&c) = code.peek() {
-                            if c.is_numeric() {
-                                num.push(c);
-                                code.next();
-                            } else if c == '.' {
-                                float = true;
-
-                                num.push(c);
-                                code.next();
-
-                                while let Some(&c) = code.peek() {
-                                    if c.is_numeric() {
-                                        num.push(c);
-                                        code.next();
-                                    } else {
-                                        break;
-                                    }
-                                }
-
-                                break;
-                            } else {
-                                break;
-                            }
-                        }
-
-                        if !float {
-                            num = format!("{}.0", num);
-                        }
-
-                        Token::new_int(num.parse::<f64>().unwrap() * -1.0)
-                    } else {
-                        check_next(&mut code, TokenType::Minus, TokenType::MinusEqual, '=')
+                    if '9' >= c && c >= '0' {
+                        multiplier = -1.0;
+                        continue;
                     }
-                } else {
-                    check_next(&mut code, TokenType::Minus, TokenType::MinusEqual, '=')
                 }
+                check_next(&mut code, TokenType::Minus, TokenType::MinusEqual, '=')
             },
             '*' => check_next(&mut code, TokenType::Multiply, TokenType::MultiplyEqual, '='),
             '/' => check_next(&mut code, TokenType::Divide, TokenType::DivideEqual, '='),
@@ -686,43 +653,32 @@ pub fn generate_tokens(code: &str) -> Vec<Token> {
                 Token::new(TokenType::Comment)
             },
             '0'..='9' => {
-                is_previous_num = true;
-
-                let mut num = String::new();
-                let mut float = false;
-                num.push(c);
+                let mut num = -('0' as i32 as f64 - c as i32 as f64);
+                let mut fract = 0.0;
+                let mut divider = 0;
 
                 while let Some(&c) = code.peek() {
-                    if c.is_digit(10) {
-                        num.push(c);
-                        code.next();
+                    if divider == 0 && '9' >= c && c >= '0' {
+                        num = num * 10.0 + -('0' as i32 as f64 - c as i32 as f64);
                     } else if c == '.' {
-                        float = true;
-
-                        num.push(c);
-                        code.next();
-
-                        while let Some(&c) = code.peek() {
-                            if c.is_digit(10) {
-                                num.push(c);
-                                code.next();
-                            } else {
-                                break;
-                            }
-                        }
-
-                        break;
+                        divider = 1;
+                    } else if divider >= 1 && '9' >= c && c >= '0' {
+                        divider *= 10;
+                        fract = fract * 10.0 + -('0' as i32 as f64 - c as i32 as f64);
                     } else {
                         break
                     }
+                    code.next();
                 }
 
-                if !float {
-                    num = format!("{}.0", num);
+                if divider > 0 {
+                    num = num + fract / divider as f64;
                 }
 
-                tokens.push(Token::new_int(num.parse::<f64>().unwrap()));
-                continue;
+                num *= multiplier;
+                multiplier = 1.0;
+
+                Token::new_int(num)
             },
             'A'..='z' => {
                 let mut string = String::new();
@@ -753,10 +709,12 @@ pub fn generate_tokens(code: &str) -> Vec<Token> {
             },
             '"' => {
                 let mut string = String::new();
+                let mut closed = false;
 
                 while let Some(&c) = code.peek() {
                     if c == '"' {
                         code.next();
+                        closed = true;
                         break
                     } else {
                         if c == '\n' {
@@ -785,17 +743,20 @@ pub fn generate_tokens(code: &str) -> Vec<Token> {
                     }
                 }
 
+                if !closed {
+                    tokens.push(Token::new_error(TokenType::SyntaxError, "String not closed".to_string()));
+                    return tokens;
+                }
+
                 Token::new_string(string)
             },
             '&' => {
                 tokens.push(Token::new_var("&".to_string()));
                 Token::new(TokenType::Dot)
             },
-            ' ' | '\n' | '\t' => continue,
+            ' ' | '\n' | '\t' | '\r' => continue,
             _ => Token::new_error(TokenType::Error, format!("{} is not a valid character", c))
         };
-
-        is_previous_num = false;
 
         tokens.push(token);
     }
