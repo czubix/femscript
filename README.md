@@ -76,6 +76,14 @@ Here are a few example use cases for Femscript:
 - **Feel free to come up with your own use cases:**
   Since Femscript is flexible, you can think of many different ways to use it. The possibilities are yours to explore!
 
+## What Uses Femscript
+
+- **~~Cenzura~~ Fembot Discord Bot:**
+  Femscript is used in the [Fembot Discord Bot](https://github.com/poligonteam/cenzura) to allow dynamic scripting and custom command handling.
+
+- **Femscript Playground:**
+  You can try Femscript on my website at [czubix.dev](https://czubix.dev), where the **Femscript Playground** allows you to experiment with the language.
+
 ## License
 
 Femscript is licensed under the Apache 2.0 License. See the LICENSE file for more details.
