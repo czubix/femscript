@@ -427,6 +427,16 @@ async fn map(name: String, args: Vec<Token>, scope: &mut Scope) -> Token {
     Token::new_list(result_list)
 }
 
+async fn sum(name: String, args: Vec<Token>, _scope: &mut Scope) -> Token {
+    check_args!(name, args);
+
+    if args[0]._type != TokenType::List {
+        return Token::new_error(TokenType::Error, "sum() takes a list of ints as its first argument".to_string());
+    }
+
+    Token::new_int(args[0].list.iter().map(|token| token.number).sum())
+}
+
 async fn _await(name: String, args: Vec<Token>, _scope: &mut Scope) -> Token {
     check_args!(name, args);
 
@@ -583,6 +593,7 @@ pub fn get_builtins() -> Vec<Function> {
         Function::new_builtin("str"),
         Function::new_builtin("int"),
         Function::new_builtin("map"),
+        Function::new_builtin("sum"),
         Function::new_builtin("await"),
         Function::new_builtin("Error"),
         Function::new_builtin("Image")
@@ -619,6 +630,7 @@ pub async fn call_builtin(name: String, args: Vec<Token>, scope: &mut Scope) -> 
     wrap!(_str, "str");
     wrap!(_int, "int");
     wrap!(map, "map");
+    wrap!(sum);
     wrap!(_await, "await");
     wrap!(error, "Error");
     wrap!(_image, "Image");

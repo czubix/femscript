@@ -1,0 +1,22 @@
+site_name: Femscript documentation
+theme:
+  name: material
+  palette:
+    scheme: slate
+    primary: deep purple
+repo_name: czubix/femscript
+repo_url: https://github.com/czubix/femscript
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/czubix
+    - icon: fontawesome/brands/discord
+      link: https://discord.gg/DFyFhtESq9

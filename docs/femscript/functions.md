@@ -1,10 +1,13 @@
 # Functions
+
 Functions are declared using the fn keyword. You can implicitly return an object without the return keyword
-```lua
+
+```femscript linenums="1"
 fn add(a, b) { a + b }
 add(1, 2)
 ```
-```lua
+
+```femscript linenums="1"
 fn Vec(x, y, z) {
     {
         borrow(x, y, z);
