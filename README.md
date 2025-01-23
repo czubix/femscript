@@ -64,7 +64,7 @@ if __name__ == "__main__":
 ```
 
 ## Docs
-The documentation is currently minimal but will be expanded over time. What exists now can be found in the `docs` directory.
+The documentation is currently minimal but will be expanded over time. What exists now can be found [here](https://czubix.github.io/femscript)
 
 ## Example Uses
 
