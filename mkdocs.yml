@@ -4,6 +4,8 @@ theme:
   palette:
     scheme: slate
     primary: deep purple
+  features:
+    - content.code.annotate
 repo_name: czubix/femscript
 repo_url: https://github.com/czubix/femscript
 markdown_extensions:

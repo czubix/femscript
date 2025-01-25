@@ -47,7 +47,7 @@ print(is_even(3)); # Outputs: odd
 
 ## Recursive Functions
 
-Femscript supports recursion, where a function can call itself. However, Femscript limits the maximum recursion depth to `100`. If this limit is exceeded, the program will throw a `RecursionError`. For example:
+Femscript supports recursion, where a function can call itself. However, Femscript limits the maximum recursion depth to `10`. If this limit is exceeded, the program will throw a `RecursionError`. For example:
 
 ```femscript linenums="1"
 fn recursion() {

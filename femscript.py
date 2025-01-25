@@ -14,7 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
-import asyncio, math
+import asyncio
+import math
 
 from femscript import generate_tokens, generate_ast, execute_ast
 
@@ -158,9 +159,9 @@ class Femscript:
             list = []
         )
 
-    def wrap_function(self, func: Optional[Callable[..., object]] = None, *, func_name: Optional[str] = None, with_name: Optional[bool] = False) -> Any:
+    def wrap_function(self, func: Optional[Callable[..., object]] = None, *, func_name: Optional[str] = None, with_name: Optional[bool] = False) -> Callable:
         def wrapper(func: Callable[..., object]):
-            if asyncio.iscoroutinefunction(func) == True:
+            if asyncio.iscoroutinefunction(func):
                 def wrapper(name: str, args: list[Token] | Token, scope: list[Variable]) -> Token:
                     async def wrapper():
                         try:

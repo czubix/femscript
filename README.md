@@ -57,13 +57,14 @@ from femscript import Femscript, var
 async def main() -> None:
     fs = Femscript("x = 35; x + y", variables=[var("y", 34)])
     result = await fs.execute()
-    print(result) # 69
+    print(result) # Outputs: 69
 
 if __name__ == "__main__":
     asyncio.run(main())
 ```
 
 ## Docs
+
 The documentation is currently minimal but will be expanded over time. What exists now can be found [here](https://czubix.github.io/femscript)
 
 ## Example Uses

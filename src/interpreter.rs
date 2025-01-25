@@ -126,7 +126,7 @@ pub async fn execute_ast(ast: Vec<AST>, scope: &mut Scope, context: Option<Token
     let mut result = Token::new(TokenType::Unknown);
     let mut context = context.unwrap_or(Token::new(TokenType::Unknown));
 
-    if depth > 100 {
+    if depth > 10 {
         return Token::new_error(TokenType::RecursionError, "Maximum recursion depth exceeded".to_string());
     }
 
@@ -605,16 +605,16 @@ pub async fn execute_ast(ast: Vec<AST>, scope: &mut Scope, context: Option<Token
             ASTType::Keyword => {
                 match node.token._type {
                     TokenType::If => {
-                        let condition = execute_ast(node.children[0].children.to_owned(), scope, Some(Token::new(TokenType::If)), depth).await;
+                        let condition = execute_ast(node.children[0].children.to_owned(), scope, Some(Token::new(TokenType::If)), depth + 1).await;
 
                         if check_if_error(&condition) {
                             return condition;
                         }
 
                         if condition.not().not().number == 1.0 {
-                            result = execute_ast(node.children[1].children.to_owned(), scope, Some(Token::new(TokenType::If)), depth).await;
+                            result = execute_ast(node.children[1].children.to_owned(), scope, Some(Token::new(TokenType::If)), depth + 1).await;
                         } else if node.children.len() == 3 {
-                            result = execute_ast(node.children[2].children.to_owned(), scope, Some(Token::new(TokenType::Else)), depth).await;
+                            result = execute_ast(node.children[2].children.to_owned(), scope, Some(Token::new(TokenType::Else)), depth + 1).await;
                         }
 
                         if check_if_error(&result) {

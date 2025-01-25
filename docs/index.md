@@ -1,41 +1,31 @@
-# Installation
-
-To install Femscript, follow the steps below:
-
+---
+title: "Introduction"
 ---
 
-### Requirements
+# Introduction to Femscript
 
-- You need to have **Rust** and **Make** installed on your system.
-- Install the required Python packages:
-    ```bash
-    pip install -r requirements.txt
-    ```
+Femscript is a simple scripting language created as a personal project to learn Rust. It is asynchronous, allowing you to execute Femscript code in Python, exchange Python values with Femscript, and vice versa, all with seamless integration.
 
----
+## Features
 
-### Installation Steps
+- **Asynchronous:** Femscript is designed to be asynchronous, ensuring it does not block the execution of the main code.
+- **Easy Integration with Python:** Executing Femscript code in Python is straightforward, and binding functions and passing variables between Python and Femscript is simple.
+- **Lightweight:** The project is lightweight and easy to set up, making it suitable for quick prototyping and integration into existing projects.
 
-1. Clone the repository:
-    ```bash
-    git clone https://github.com/czubix/femscript.git
-    ```
+## Example Uses
 
-2. Navigate to the project directory:
-    ```bash
-    cd femscript
-    ```
+Here are a few example use cases for Femscript:
 
-3. Build the project:
-    ```bash
-    make build PYTHON_VERSION=your_python_command
-    ```
-    (Optional: To build in release mode, use the following command instead):
-    ```bash
-    make build PYTHON_VERSION=your_python_command EXTRA_ARGS="--release"
-    ```
+- **Adding Custom Commands in a Discord Bot:**
+  Femscript can be used to allow users to write their own custom commands for a Discord bot. With the ability to easily bind functions and pass variables between Python and Femscript, you can integrate scripting functionality directly into your bot.
 
-4. Install the package:
-    ```bash
-    make install PYTHON_VERSION=your_python_command PIP_VERSION=your_pip_command
-    ```
+- **Feel free to come up with your own use cases:**
+  Since Femscript is flexible, you can think of many different ways to use it. The possibilities are yours to explore!
+
+## What Uses Femscript
+
+- **Fembot Discord Bot:**
+  Femscript is used in the [Fembot Discord Bot](https://github.com/poligonteam/cenzura) to allow dynamic scripting and custom command handling.
+
+- **Femscript Playground:**
+  You can try Femscript on my website at [czubix.dev](https://czubix.dev), where the **Femscript Playground** allows you to experiment with the language.
