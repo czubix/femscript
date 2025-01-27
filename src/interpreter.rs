@@ -326,6 +326,52 @@ pub async fn execute_ast(ast: Vec<AST>, scope: &mut Scope, context: Option<Token
                                             } else {
                                                 return execute_ast(node.children, &mut token_scope.to_owned(), Some(node.token.to_owned()), depth).await;
                                             }
+                                        } if let Some(variable_function) = get_function(&node.token.value, &mut token_scope.to_owned()) {
+                                            let args_result = execute_ast(node.children.to_owned(), scope, Some(node.token.to_owned()), depth).await;
+
+                                            if check_if_error(&args_result) {
+                                                return args_result;
+                                            }
+
+                                            let args = args_result.list.to_owned();
+
+                                            if let Some(body) = &variable_function.body {
+                                                if args.len() != variable_function.args.len() {
+                                                    return Token::new_error(TokenType::TypeError, format!("{}() takes {} arguments", variable_function.name, variable_function.args.len()));
+                                                }
+
+                                                let mut function_scope = Scope {
+                                                    variables: scope.variables.to_owned(),
+                                                    functions: scope.functions.to_owned()
+                                                };
+
+                                                for (i, arg) in args.iter().enumerate() {
+                                                    function_scope.variables.push(Variable {
+                                                        name: variable_function.args[i].to_owned(),
+                                                        value: arg.to_owned()
+                                                    });
+                                                }
+
+                                                result = execute_ast(body.to_owned(), &mut function_scope, Some(Token::new(TokenType::Func)), depth + 1).await;
+
+                                                if check_if_error(&result) {
+                                                    return result;
+                                                }
+
+                                                for function_variable in function_scope.variables {
+                                                    if !variable_function.args.contains(&function_variable.name) {
+                                                        if let Some(variable) = get_variable(&function_variable.name, scope) {
+                                                            variable.value = function_variable.value;
+                                                        } else {
+                                                            scope.variables.push(function_variable);
+                                                        }
+                                                    }
+                                                }
+
+                                                return result;
+                                            } else {
+                                                return Token::new_error(TokenType::Undefined, format!("{} is not defined", node.token.value));
+                                            }
                                         } else {
                                             return Token::new_error(TokenType::Undefined, format!("{} is not defined", node.token.value));
                                         }

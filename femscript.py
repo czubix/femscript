@@ -17,7 +17,7 @@ limitations under the License.
 import asyncio
 import math
 
-from femscript import generate_tokens, generate_ast, execute_ast
+from femscript import generate_tokens, generate_ast, execute_ast, parse_equation
 
 from typing import Optional, TypedDict, Callable, Any
 
@@ -81,12 +81,13 @@ class FemscriptException(Exception):
     pass
 
 class Femscript:
-    def __init__(self, code: Optional[str] = None, *, variables: Optional[list[Variable]] = None, functions: Optional[list[Callable[[str, list[Token], list[Variable]], Token]]] = None) -> None:
+    def __init__(self, code: Optional[str] = None, *, variables: Optional[list[Variable]] = None, functions: Optional[list[Callable[[str, list[Token], list[Variable]], Token]]] = None, modules: Optional[dict[str, str]] = None) -> None:
         self.tokens: list[Token]
         self.ast: list[AST]
 
-        self._variables = variables or []
-        self._functions = functions or []
+        self._variables: list[Variable] = variables or []
+        self._functions: list[Function] = functions or []
+        self._modules: dict[str, list[AST]] = modules or {}
 
         if code is not None:
             self.parse(code)
@@ -94,6 +95,9 @@ class Femscript:
     def parse(self, code: Optional[str] = None) -> None:
         self.tokens = generate_tokens(code or "")
         self.ast = generate_ast(self.tokens)
+
+        for module in self._modules:
+            self._modules[module] = generate_ast(generate_tokens(self._modules[module]))
 
     def add_variable(self, variable: Variable) -> None:
         for index, _variable in enumerate(self._variables):
@@ -103,6 +107,9 @@ class Femscript:
             return self._variables.append(variable)
 
         self._variables[index] = variable
+
+    def add_module(self, name: str, code: str) -> None:
+        self._modules[name] = generate_ast(generate_tokens(code))
 
     @property
     def variables(self) -> dict[str, object]:
@@ -205,8 +212,8 @@ class Femscript:
 
         return wrapper
 
-    async def execute(self, *, memory_limit: Optional[int] = 1024 * 1024 * 1024, max_variables: Optional[int] = 1000, max_depth: Optional[int] = 1000, frame_function: Optional[Callable[[Variable], Token]] = None, debug: Optional[bool] = False) -> Any:
-        result, scope = await execute_ast(self.ast, self._variables, self._functions, debug)
+    async def execute(self, *, debug: Optional[bool] = False) -> Any:
+        result, scope = await execute_ast(self.ast, self._variables, self._functions, self._modules, debug)
         self._variables = [{"name": key, "value": value} for key, value in scope.items()]
 
         return self.to_py(result)

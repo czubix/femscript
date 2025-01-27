@@ -411,6 +411,27 @@ pub fn generate_ast(tokens: Vec<&Token>) -> Vec<AST> {
                     }
                 });
             },
+            TokenType::Import => {
+                let mut import_list: Vec<AST> = Vec::new();
+
+                while let Some(token) = tokens.next() {
+                    if token._type == TokenType::Var {
+                        import_list.push(AST {
+                            _type: ASTType::Token,
+                            token: token.to_owned().to_owned(),
+                            children: Vec::new()
+                        });
+                    } else if token._type == TokenType::Semicolon {
+                        break;
+                    }
+                }
+
+                ast.push(AST {
+                    _type: ASTType::Keyword,
+                    token: token.to_owned().to_owned(),
+                    children: import_list
+                });
+            },
             // TokenType::Int => {
             //     let mut children: Vec<AST> = Vec::new();
 

@@ -47,7 +47,7 @@ pub enum TokenType {
     List, Scope,
     PyObject, RustObject,
 
-    Error, Undefined, RecursionError, SyntaxError, TypeError, IndexError, Unsupported
+    Error, Undefined, RecursionError, SyntaxError, TypeError, IndexError, Unsupported, ModuleNotfound
 }
 
 #[allow(dead_code)]
@@ -88,7 +88,7 @@ impl FromStr for TokenType {
             List, Scope,
             PyObject, RustObject,
 
-            Error, Undefined, RecursionError, SyntaxError, TypeError, IndexError, Unsupported
+            Error, Undefined, RecursionError, SyntaxError, TypeError, IndexError, Unsupported, ModuleNotfound
         )
     }
 }
@@ -500,7 +500,7 @@ impl Token {
     }
 }
 
-fn parse_equation(tokens: Vec<&Token>) -> Vec<Token> {
+pub fn parse_equation(tokens: Vec<&Token>) -> Vec<Token> {
     let mut tokens = tokens.into_iter().peekable();
     let mut parsed_tokens: Vec<Token> = Vec::new();
     let mut stack: Vec<&Token> = Vec::new();
@@ -532,8 +532,6 @@ fn parse_equation(tokens: Vec<&Token>) -> Vec<Token> {
 
                 to_parse.push(token);
             }
-
-            tokens.next();
 
             parsed_tokens.append(&mut parse_equation(to_parse));
         } else if precedence.contains_key(&token._type) {

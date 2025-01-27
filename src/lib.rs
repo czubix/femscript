@@ -52,7 +52,7 @@ fn generate_ast<'a>(py: Python<'a>, tokens: Vec<&PyDict>) -> PyResult<Vec<&'a Py
 }
 
 #[pyfunction]
-fn execute_ast<'a>(py: Python<'a>, ast: Vec<&PyDict>, variables: Vec<&PyDict>, functions: Vec<&PyDict>, debug: &PyBool) -> PyResult<&'a PyAny> {
+fn execute_ast<'a>(py: Python<'a>, ast: Vec<&PyDict>, variables: Vec<&PyDict>, functions: Vec<&PyDict>, modules: &PyDict, debug: &PyBool) -> PyResult<&'a PyAny> {
     let rust_ast = convert_to_ast(py, ast);
 
     let mut scope = utils::get_scope(py, variables);
@@ -72,11 +72,50 @@ fn execute_ast<'a>(py: Python<'a>, ast: Vec<&PyDict>, variables: Vec<&PyDict>, f
         scope.push_pyfunc(&name, func);
     }
 
+    let mut module_asts: Vec<Vec<parser::AST>> = Vec::new();
+
+    if !rust_ast.is_empty() && rust_ast[0].token._type == lexer::TokenType::Import {
+        for ast in rust_ast[0].children.to_owned() {
+            if let Ok(result) = modules.contains(&ast.token.value) {
+                if result {
+                    module_asts.push(convert_to_ast(py, modules.get_item(&ast.token.value).unwrap().extract().unwrap()));
+                } else {
+                    return Ok(convert_token(py, lexer::Token::new_error(lexer::TokenType::ModuleNotfound, format!("no module named {}", ast.token.value))))
+                }
+            } else {
+                return Ok(convert_token(py, lexer::Token::new_error(lexer::TokenType::ModuleNotfound, format!("no module named {}", ast.token.value))))
+            }
+        }
+    }
+
     pyo3_asyncio::tokio::future_into_py(py, async move {
+        for ast in module_asts {
+            interpreter::execute_ast(ast, &mut scope, None, 0).await;
+        }
+
         let result = interpreter::execute_ast(rust_ast, &mut scope, None, 0).await;
 
         Ok(Python::with_gil(|py| (convert_token(py, result).as_ref().to_object(py).clone(), walk_scope(py, scope).to_object(py).clone())))
     })
+}
+
+#[pyfunction]
+fn parse_equation<'a>(py: Python<'a>, tokens: Vec<&PyDict>) -> PyResult<Vec<&'a PyDict>> {
+    let mut rust_tokens: Vec<lexer::Token> = Vec::new();
+
+    for token in tokens {
+        rust_tokens.push(convert_to_token(py, token));
+    }
+
+    let tokens = lexer::parse_equation(rust_tokens.iter().collect());
+
+    let mut py_tokens = Vec::new();
+
+    for token in tokens {
+        py_tokens.push(convert_token(py, token));
+    }
+
+    Ok(py_tokens)
 }
 
 #[pymodule]
@@ -84,6 +123,7 @@ fn femscript(_py: Python, module: &PyModule) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(generate_tokens, module)?)?;
     module.add_function(wrap_pyfunction!(generate_ast, module)?)?;
     module.add_function(wrap_pyfunction!(execute_ast, module)?)?;
+    module.add_function(wrap_pyfunction!(parse_equation, module)?)?;
 
     Ok(())
 }

@@ -28,5 +28,8 @@ def generate_tokens(code: str) -> list[Token]:
 def generate_ast(tokens: list[Token]) -> list[AST]:
     pass
 
-def execute_ast(ast: list[AST], variables: list[Variable], functions: list[Function], debug: bool) -> Token:
+def execute_ast(ast: list[AST], variables: list[Variable], functions: list[Function], modules: dict[str, list[AST]], debug: bool) -> Token:
+    pass
+
+def parse_equation(tokens: list[Token]) -> list[Token]:
     pass
