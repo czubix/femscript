@@ -358,16 +358,6 @@ pub async fn execute_ast(ast: Vec<AST>, scope: &mut Scope, context: Option<Token
                                                     return result;
                                                 }
 
-                                                for function_variable in function_scope.variables {
-                                                    if !variable_function.args.contains(&function_variable.name) {
-                                                        if let Some(variable) = get_variable(&function_variable.name, scope) {
-                                                            variable.value = function_variable.value;
-                                                        } else {
-                                                            scope.variables.push(function_variable);
-                                                        }
-                                                    }
-                                                }
-
                                                 return result;
                                             } else {
                                                 return Token::new_error(TokenType::Undefined, format!("{} is not defined", node.token.value));
@@ -448,16 +438,6 @@ pub async fn execute_ast(ast: Vec<AST>, scope: &mut Scope, context: Option<Token
 
                                 if check_if_error(&result) {
                                     return result;
-                                }
-
-                                for function_variable in function_scope.variables {
-                                    if !function.args.contains(&function_variable.name) {
-                                        if let Some(variable) = get_variable(&function_variable.name, scope) {
-                                            variable.value = function_variable.value;
-                                        } else {
-                                            scope.variables.push(function_variable);
-                                        }
-                                    }
                                 }
                             } else if let Some(pyfunc) = &function.pyfunc {
                                 result = Python::with_gil(|py| {

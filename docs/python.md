@@ -120,7 +120,7 @@ def to_py(token: Token) -> Any
 ```
 
 - **Parameters:**
-    - `token`: Token - Femscript token to convert.
+    - `token`: [Token](#class-token-typeddict) - Femscript token to convert.
 - **Returns:** Any
 
 ---

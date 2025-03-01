@@ -77,17 +77,51 @@ def var(name: str, value: Optional[object] = None, *, variables: Optional[list[V
 
     return Variable(name=name, value=Femscript.to_fs(value))
 
+class FemscriptModule:
+    def __init__(self, name: str, code: str) -> None:
+        self.name = name
+        self.ast = generate_ast(generate_tokens(code))
+
+    def __or__(self, other: "FemscriptModule") -> "FemscriptModules":
+        return FemscriptModules([self, other])
+
+class FemscriptModules:
+    def __init__(self, modules: Optional[list[FemscriptModule]] = None) -> None:
+        self._modules: list[FemscriptModule] = modules or []
+
+    def __or__(self, other: "FemscriptModule") -> "FemscriptModules":
+        self.add_module(other)
+        return self
+
+    def __getattribute__(self, name: str) -> Any:
+        if (module := super().__getattribute__("get_module")(name)):
+            return module
+        return super().__getattribute__(name)
+
+    def add_module(self, module: FemscriptModule) -> None:
+        if (_module := self.get_module(module.name)):
+            self._modules.remove(_module)
+        self._modules.append(module)
+
+    def remove_module(self, module: FemscriptModule) -> None:
+        self._modules.remove(module)
+
+    def get_module(self, name: str) -> Optional[FemscriptModule]:
+        for module in super().__getattribute__("_modules"):
+            if module.name == name:
+                return module
+
 class FemscriptException(Exception):
     pass
 
 class Femscript:
-    def __init__(self, code: Optional[str] = None, *, variables: Optional[list[Variable]] = None, functions: Optional[list[Callable[[str, list[Token], list[Variable]], Token]]] = None, modules: Optional[dict[str, str]] = None) -> None:
+    def __init__(self, code: Optional[str] = None, *, variables: Optional[list[Variable]] = None, functions: Optional[list[Callable[[str, list[Token], list[Variable]], Token]]] = None, modules: Optional[FemscriptModules] = None) -> None:
         self.tokens: list[Token]
         self.ast: list[AST]
 
         self._variables: list[Variable] = variables or []
         self._functions: list[Function] = functions or []
-        self._modules: dict[str, list[AST]] = modules or {}
+        self._modules = modules or FemscriptModules()
 
         if code is not None:
             self.parse(code)
@@ -95,9 +129,6 @@ class Femscript:
     def parse(self, code: Optional[str] = None) -> None:
         self.tokens = generate_tokens(code or "")
         self.ast = generate_ast(self.tokens)
-
-        for module in self._modules:
-            self._modules[module] = generate_ast(generate_tokens(self._modules[module]))
 
     def add_variable(self, variable: Variable) -> None:
         for index, _variable in enumerate(self._variables):
@@ -107,9 +138,6 @@ class Femscript:
             return self._variables.append(variable)
 
         self._variables[index] = variable
-
-    def add_module(self, name: str, code: str) -> None:
-        self._modules[name] = generate_ast(generate_tokens(code))
 
     @property
     def variables(self) -> dict[str, object]:
@@ -213,7 +241,7 @@ class Femscript:
         return wrapper
 
     async def execute(self, *, debug: Optional[bool] = False) -> Any:
-        result, scope = await execute_ast(self.ast, self._variables, self._functions, self._modules, debug)
+        result, scope = await execute_ast(self.ast, self._variables, self._functions, {module.name: module.ast for module in self._modules._modules}, debug)
         self._variables = [{"name": key, "value": value} for key, value in scope.items()]
 
         return self.to_py(result)

@@ -141,15 +141,15 @@ async fn debug(name: String, args: Vec<Token>, _scope: &mut Scope) -> Token {
     )
 }
 
-async fn get(name: String, args: Vec<Token>, _scope: &mut Scope) -> Token {
+async fn getitem(name: String, args: Vec<Token>, _scope: &mut Scope) -> Token {
     check_args!(name, args, 2);
 
     if args[0]._type != TokenType::List {
-        return Token::new_error(TokenType::TypeError, "get() takes a list as its first argument".to_string());
+        return Token::new_error(TokenType::TypeError, "getitem() takes a list as its first argument".to_string());
     }
 
     if args[1]._type != TokenType::Int {
-        return Token::new_error(TokenType::TypeError, "get() takes an int as its second argument".to_string());
+        return Token::new_error(TokenType::TypeError, "getitem() takes an int as its second argument".to_string());
     }
 
     let index = args[1].number as usize;
@@ -255,33 +255,40 @@ async fn rgb(name: String, args: Vec<Token>, _scope: &mut Scope) -> Token {
     Token::new_int(((r << 16) | (g << 8) | b) as f64)
 }
 
-async fn randint(name: String, args: Vec<Token>, _scope: &mut Scope) -> Token {
-    check_args!(name, args, 2, 3);
+async fn random(name: String, args: Vec<Token>, _scope: &mut Scope) -> Token {
+    Token::new_int(rand::thread_rng().gen::<f64>())
+}
 
-    if args[0]._type != TokenType::Int {
-        return Token::new_error(TokenType::TypeError, "randint() takes an int as its first argument".to_string());
+async fn dir(name: String, args: Vec<Token>, _scope: &mut Scope) -> Token {
+    check_args!(name, args, 1);
+
+    if args[0]._type != TokenType::Scope {
+        return Token::new_error(TokenType::TypeError, "dir() takes a scope as its first argument".to_string());
     }
 
-    if args[1]._type != TokenType::Int {
-        return Token::new_error(TokenType::TypeError, "randint() takes an int as its second argument".to_string());
+    let mut elements: Vec<Token> = Vec::new();
+    let scope = args[0].scope.to_owned().unwrap();
+
+    for variable in scope.variables {
+        elements.push(Token::new_string(variable.name))
     }
 
-    let mut rng = rand::thread_rng();
-    let mut num = rng.gen::<f64>() * (args[1].number - args[0].number) + args[0].number;
-
-    if args.len() == 3 {
-        if args[2]._type != TokenType::Bool {
-            return Token::new_error(TokenType::TypeError, "randint() takes a bool as its third argument".to_string());
+    for function in scope.functions {
+        if function.body.is_none() {
+            continue
         }
 
-        if args[2].number == 0.0 {
-            num = num.floor()
-        }
-    } else {
-        num = num.floor()
+        let mut signature = String::new();
+
+        signature += &function.name;
+        signature += "(";
+        signature += &function.args.join(", ");
+        signature += ")";
+
+        elements.push(Token::new_string(signature))
     }
 
-    Token::new_int(num)
+    Token::new_list(elements)
 }
 
 async fn _format(name: String, args: Vec<Token>, scope: &mut Scope) -> Token {
@@ -421,6 +428,8 @@ async fn map(name: String, args: Vec<Token>, scope: &mut Scope) -> Token {
 
                 result_list.push(result);
             }
+        } else {
+            return Token::new_error(TokenType::Undefined, format!("{} is not defined", args[1].value));
         }
     }
 
@@ -580,20 +589,21 @@ async fn image_draw_line(object: Token, name: String, args: Vec<Token>, _scope: 
 
 pub fn get_builtins() -> Vec<Function> {
     vec![
-        Function::new_builtin("get"),
+        Function::new_builtin("getitem"),
         Function::new_builtin("len"),
         Function::new_builtin("contains"),
         Function::new_builtin("split"),
         Function::new_builtin("join"),
         Function::new_builtin("hex"),
         Function::new_builtin("rgb"),
-        Function::new_builtin("randint"),
+        Function::new_builtin("random"),
         Function::new_builtin("format"),
         Function::new_builtin("type"),
         Function::new_builtin("str"),
         Function::new_builtin("int"),
         Function::new_builtin("map"),
         Function::new_builtin("sum"),
+        Function::new_builtin("dir"),
         Function::new_builtin("await"),
         Function::new_builtin("Error"),
         Function::new_builtin("Image")
@@ -617,20 +627,21 @@ pub async fn call_builtin(name: String, args: Vec<Token>, scope: &mut Scope) -> 
 
     wrap!(print);
     wrap!(debug);
-    wrap!(get);
+    wrap!(getitem);
     wrap!(len);
     wrap!(contains);
     wrap!(split);
     wrap!(join);
     wrap!(hex);
     wrap!(rgb);
-    wrap!(randint);
+    wrap!(random);
     wrap!(_format, "format");
     wrap!(_type, "type");
     wrap!(_str, "str");
     wrap!(_int, "int");
     wrap!(map, "map");
     wrap!(sum);
+    wrap!(dir);
     wrap!(_await, "await");
     wrap!(error, "Error");
     wrap!(_image, "Image");

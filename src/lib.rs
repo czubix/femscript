@@ -73,22 +73,29 @@ fn execute_ast<'a>(py: Python<'a>, ast: Vec<&PyDict>, variables: Vec<&PyDict>, f
     }
 
     let mut module_asts: Vec<Vec<parser::AST>> = Vec::new();
+    let mut module = String::new();
 
-    if !rust_ast.is_empty() && rust_ast[0].token._type == lexer::TokenType::Import {
-        for ast in rust_ast[0].children.to_owned() {
-            if let Ok(result) = modules.contains(&ast.token.value) {
-                if result {
-                    module_asts.push(convert_to_ast(py, modules.get_item(&ast.token.value).unwrap().extract().unwrap()));
+    for ast in rust_ast.to_owned() {
+        if ast.token._type == lexer::TokenType::Import {
+            for ast in ast.children.to_owned() {
+                if let Ok(result) = modules.contains(&ast.token.value) {
+                    if result {
+                        module_asts.push(convert_to_ast(py, modules.get_item(&ast.token.value).unwrap().extract().unwrap()));
+                    } else {
+                        module = ast.token.value;
+                    }
                 } else {
-                    return Ok(convert_token(py, lexer::Token::new_error(lexer::TokenType::ModuleNotfound, format!("no module named {}", ast.token.value))))
+                    module = ast.token.value;
                 }
-            } else {
-                return Ok(convert_token(py, lexer::Token::new_error(lexer::TokenType::ModuleNotfound, format!("no module named {}", ast.token.value))))
             }
         }
     }
 
     pyo3_asyncio::tokio::future_into_py(py, async move {
+        if !module.is_empty() {
+            return Ok(Python::with_gil(|py| (convert_token(py, lexer::Token::new_error(lexer::TokenType::ModuleNotfound, format!("no module named {}", module))).as_ref().to_object(py), PyDict::new(py).to_object(py))))
+        }
+
         for ast in module_asts {
             interpreter::execute_ast(ast, &mut scope, None, 0).await;
         }
