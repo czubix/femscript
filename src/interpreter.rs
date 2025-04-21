@@ -167,6 +167,8 @@ pub async fn execute_ast(ast: Vec<AST>, scope: &mut Scope, context: Option<Token
                     for function in &scope.functions {
                         if function.builtin == true {
                             block_scope.push_builtin(&function.name);
+                        } else if function.pyfunc.is_some() {
+                            block_scope.push_pyfunc(&function.name, function.pyfunc.as_ref().unwrap().to_owned());
                         }
                     }
 

@@ -1,4 +1,4 @@
-from typing import TypedDict, Callable, Optional
+from typing import TypedDict, Callable, Optional, Any
 
 class Token(TypedDict):
     type: str
@@ -32,4 +32,7 @@ def execute_ast(ast: list[AST], variables: list[Variable], functions: list[Funct
     pass
 
 def parse_equation(tokens: list[Token]) -> list[Token]:
+    pass
+
+def format_string(*args: Any, **kwargs: Any) -> str:
     pass

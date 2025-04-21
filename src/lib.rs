@@ -17,7 +17,8 @@ limitations under the License.
 #![warn(clippy::pedantic)]
 
 use crate::utils::*;
-use pyo3::{prelude::*, types::{PyDict, PyBool}};
+use pyo3::{ffi::PyModule_GetFilename, prelude::*, types::{PyBool, PyDict, PyString, PyTuple}, PyErrArguments};
+use std::ops::Bound;
 
 mod lexer;
 mod parser;
@@ -125,12 +126,30 @@ fn parse_equation<'a>(py: Python<'a>, tokens: Vec<&PyDict>) -> PyResult<Vec<&'a 
     Ok(py_tokens)
 }
 
+#[pyfunction]
+#[pyo3(signature = (*args, **kwargs))]
+fn format_string<'a>(py: Python<'a>, args: &PyTuple, kwargs: Option<&PyDict>) -> PyResult<&'a PyAny> {
+    let args = args.into_iter().map(|token| to_token(py, token.to_object(py))).collect();
+    let mut scope = interpreter::Scope::new();
+
+    if let Some(kwargs) = kwargs {
+        for (key, value) in kwargs {
+            scope.push_variable(key.to_string().as_str(), to_token(py, value.to_object(py)));
+        }
+    }
+
+    pyo3_asyncio::tokio::future_into_py(py, async move {
+        Ok(builtins::call_builtin("format".to_string(), args, &mut scope).await.unwrap().value)
+    })
+}
+
 #[pymodule]
 fn femscript(_py: Python, module: &PyModule) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(generate_tokens, module)?)?;
     module.add_function(wrap_pyfunction!(generate_ast, module)?)?;
     module.add_function(wrap_pyfunction!(execute_ast, module)?)?;
     module.add_function(wrap_pyfunction!(parse_equation, module)?)?;
+    module.add_function(wrap_pyfunction!(format_string, module)?)?;
 
     Ok(())
 }

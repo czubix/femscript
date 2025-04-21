@@ -17,7 +17,7 @@ limitations under the License.
 import asyncio
 import math
 
-from femscript import generate_tokens, generate_ast, execute_ast, parse_equation
+from femscript import generate_tokens, generate_ast, execute_ast, parse_equation, format_string
 
 from typing import Optional, TypedDict, Callable, Any
 
