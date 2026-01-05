@@ -1,5 +1,5 @@
 /*
-Copyright 2022-2025 czubix
+Copyright 2022-2026 czubix
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -126,7 +126,7 @@ pub async fn execute_ast(ast: Vec<AST>, scope: &mut Scope, context: Option<Token
     let mut result = Token::new(TokenType::Unknown);
     let mut context = context.unwrap_or(Token::new(TokenType::Unknown));
 
-    if depth > 10 {
+    if depth > 25 {
         return Token::new_error(TokenType::RecursionError, "Maximum recursion depth exceeded".to_string());
     }
 
@@ -430,10 +430,15 @@ pub async fn execute_ast(ast: Vec<AST>, scope: &mut Scope, context: Option<Token
                                 };
 
                                 for (i, arg) in args.iter().enumerate() {
-                                    function_scope.variables.push(Variable {
-                                        name: function.args[i].to_owned(),
-                                        value: arg.to_owned()
-                                    });
+                                    let name = function.args[i].to_owned();
+                                    if let Some(variable) = get_variable(&name, &mut function_scope) {
+                                        variable.value = arg.to_owned();
+                                    } else {
+                                        function_scope.variables.push(Variable {
+                                            name,
+                                            value: arg.to_owned()
+                                        });
+                                    }
                                 }
 
                                 result = execute_ast(body.to_owned(), &mut function_scope, Some(Token::new(TokenType::Func)), depth + 1).await;

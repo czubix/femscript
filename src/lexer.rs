@@ -1,5 +1,5 @@
 /*
-Copyright 2022-2025 czubix
+Copyright 2022-2026 czubix
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -81,7 +81,7 @@ impl FromStr for TokenType {
             If, Else,
             And, Or,
             Func, Import,
-            Return,
+            Return,w
 
             Var, Str, Int, Bytes,
             Bool, None,
@@ -650,18 +650,18 @@ pub fn generate_tokens(code: &str) -> Vec<Token> {
                 Token::new(TokenType::Comment)
             },
             '0'..='9' => {
-                let mut num = -('0' as i32 as f64 - c as i32 as f64);
+                let mut num = -('0' as u64 as f64 - c as u64 as f64);
                 let mut fract = 0.0;
-                let mut divider = 0;
+                let mut divider: u64 = 0;
 
                 while let Some(&c) = code.peek() {
                     if divider == 0 && '9' >= c && c >= '0' {
-                        num = num * 10.0 + -('0' as i32 as f64 - c as i32 as f64);
+                        num = num * 10.0 + -('0' as u64 as f64 - c as u64 as f64);
                     } else if c == '.' {
                         divider = 1;
                     } else if divider >= 1 && '9' >= c && c >= '0' {
                         divider *= 10;
-                        fract = fract * 10.0 + -('0' as i32 as f64 - c as i32 as f64);
+                        fract = fract * 10.0 + -('0' as u64 as f64 - c as u64 as f64);
                     } else {
                         break
                     }

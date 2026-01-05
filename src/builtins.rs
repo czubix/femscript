@@ -1,5 +1,5 @@
 /*
-Copyright 2022-2025 czubix
+Copyright 2022-2026 czubix
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 use crate::lexer::{Token, TokenType, RustObject};
-use crate::interpreter::{execute_ast, get_function, check_if_error, Function, Scope};
+use crate::interpreter::{execute_ast, get_variable, get_function, check_if_error, Function, Scope};
 use crate::utils::convert_to_token;
 use image::{ImageBuffer, Rgb, ImageResult, ImageFormat};
 use std::io::Cursor;
@@ -161,6 +161,28 @@ async fn getitem(name: String, args: Vec<Token>, _scope: &mut Scope) -> Token {
     args[0].list[index].to_owned()
 }
 
+async fn getvalue(name: String, args: Vec<Token>, _scope: &mut Scope) -> Token {
+    check_args!(name, args, 2, 3);
+
+    if args[0]._type != TokenType::Scope {
+        return Token::new_error(TokenType::TypeError, "getvalue() takes a scope as its first argument".to_string());
+    }
+
+    if args[1]._type != TokenType::Str {
+        return Token::new_error(TokenType::TypeError, "getvalue() takes a string as its second argument".to_string());
+    }
+
+    if let Some(variable) = get_variable(&args[1].value, &mut args[0].scope.to_owned().unwrap()) {
+        variable.value.to_owned()
+    } else {
+        if args.len() >= 3 {
+            args[2].to_owned()
+        } else {
+            Token::new_none()
+        }
+    }
+}
+
 async fn len(name: String, args: Vec<Token>, _scope: &mut Scope) -> Token {
     check_args!(name, args);
 
@@ -175,11 +197,11 @@ async fn contains(name: String, args: Vec<Token>, _scope: &mut Scope) -> Token {
     check_args!(name, args, 2);
 
     if args[0]._type != TokenType::List {
-        return Token::new_error(TokenType::TypeError, "has() takes a list as its first argument".to_string());
+        return Token::new_error(TokenType::TypeError, "contains() takes a list as its first argument".to_string());
     }
 
     if let TokenType::Str | TokenType::Int | TokenType::Bool = args[1]._type {} else {
-        return Token::new_error(TokenType::TypeError, "has() takes string, int or bool as its second argument".to_string());
+        return Token::new_error(TokenType::TypeError, "contains() takes string, int or bool as its second argument".to_string());
     }
 
     for token in &args[0].list {
@@ -436,6 +458,52 @@ async fn map(name: String, args: Vec<Token>, scope: &mut Scope) -> Token {
     Token::new_list(result_list)
 }
 
+async fn filter(name: String, args: Vec<Token>, scope: &mut Scope) -> Token {
+    check_args!(name, args, 2);
+
+    if args[0]._type != TokenType::List {
+        return Token::new_error(TokenType::TypeError, "filter() takes a list as its first argument".to_string());
+    }
+
+    if args[1]._type != TokenType::Str {
+        return Token::new_error(TokenType::TypeError, "filter() takes a string as its second argument".to_string());
+    }
+
+    let mut result_list: Vec<Token> = Vec::new();
+
+    for arg in args[0].list.to_owned() {
+        let item = arg.to_owned();
+        if let Some(function) = get_function(&args[1].value, &mut scope.to_owned()) {
+            if function.args.len() != 1 {
+                return Token::new_error(TokenType::TypeError, format!("function {} should take 1 argument", function.name));
+            }
+
+            if let Some(body) = &function.body {
+                let mut function_scope = Scope {
+                    variables: scope.variables.to_owned(),
+                    functions: scope.functions.to_owned()
+                };
+
+                function_scope.push_variable(function.args[0].as_str(), arg);
+
+                let result = execute_ast(body.to_owned(), &mut function_scope, Some(Token::new(TokenType::Func)), 0).await;
+
+                if check_if_error(&result) {
+                    return result;
+                }
+
+                if result._type == TokenType::Bool && result.number == 1.0 {
+                    result_list.push(item);
+                }
+            }
+        } else {
+            return Token::new_error(TokenType::Undefined, format!("{} is not defined", args[1].value));
+        }
+    }
+
+    Token::new_list(result_list)
+}
+
 async fn sum(name: String, args: Vec<Token>, _scope: &mut Scope) -> Token {
     check_args!(name, args);
 
@@ -590,6 +658,7 @@ async fn image_draw_line(object: Token, name: String, args: Vec<Token>, _scope: 
 pub fn get_builtins() -> Vec<Function> {
     vec![
         Function::new_builtin("getitem"),
+        Function::new_builtin("getvalue"),
         Function::new_builtin("len"),
         Function::new_builtin("contains"),
         Function::new_builtin("split"),
@@ -602,6 +671,7 @@ pub fn get_builtins() -> Vec<Function> {
         Function::new_builtin("str"),
         Function::new_builtin("int"),
         Function::new_builtin("map"),
+        Function::new_builtin("filter"),
         Function::new_builtin("sum"),
         Function::new_builtin("dir"),
         Function::new_builtin("await"),
@@ -628,6 +698,7 @@ pub async fn call_builtin(name: String, args: Vec<Token>, scope: &mut Scope) -> 
     wrap!(print);
     wrap!(debug);
     wrap!(getitem);
+    wrap!(getvalue);
     wrap!(len);
     wrap!(contains);
     wrap!(split);
@@ -639,7 +710,8 @@ pub async fn call_builtin(name: String, args: Vec<Token>, scope: &mut Scope) -> 
     wrap!(_type, "type");
     wrap!(_str, "str");
     wrap!(_int, "int");
-    wrap!(map, "map");
+    wrap!(map);
+    wrap!(filter);
     wrap!(sum);
     wrap!(dir);
     wrap!(_await, "await");

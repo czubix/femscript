@@ -1,5 +1,5 @@
 /*
-Copyright 2022-2025 czubix
+Copyright 2022-2026 czubix
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,8 +17,7 @@ limitations under the License.
 #![warn(clippy::pedantic)]
 
 use crate::utils::*;
-use pyo3::{ffi::PyModule_GetFilename, prelude::*, types::{PyBool, PyDict, PyString, PyTuple}, PyErrArguments};
-use std::ops::Bound;
+use pyo3::{prelude::*, types::{PyBool, PyDict, PyTuple}};
 
 mod lexer;
 mod parser;
