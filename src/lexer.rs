@@ -81,7 +81,7 @@ impl FromStr for TokenType {
             If, Else,
             And, Or,
             Func, Import,
-            Return,w
+            Return,
 
             Var, Str, Int, Bytes,
             Bool, None,
